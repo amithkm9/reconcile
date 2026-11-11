@@ -21,13 +21,22 @@
 
 ---
 
-Every week, a French care home (EHPAD) receives hundreds of payments for its residents' invoices:
-- a resident's direct debit;
-- a daughter's transfer under her married name, with "PENSION FEV" as the only reference;
-- a département paying for 40 residents in one transfer, with the statement a week later;
-- a guardian paying for several residents at once.
+Every week, a French care home (EHPAD) receives hundreds of payments for its residents' invoices, and one invoice is rarely paid by one person:
 
-A finance clerk matches each one by hand. The expensive mistakes are posting money to the wrong family and chasing a family that has already paid.
+```mermaid
+flowchart LR
+    INV["One resident's<br/>monthly invoice"]
+    INV --> R["Resident<br/>direct debit"]
+    INV --> F["Son or daughter<br/>transfer, maybe under a married name,<br/>reference like 'PENSION FEV'"]
+    INV --> D["Département (social aid)<br/>one transfer for many residents,<br/>statement a week later"]
+    INV --> G["Guardian<br/>one transfer for several residents"]
+    classDef inv fill:#1f5f8b,color:#fff,stroke:#1f5f8b
+    classDef payer fill:#f3f8fc,stroke:#1f5f8b,color:#1b1f24
+    class INV inv
+    class R,F,D,G payer
+```
+
+A finance clerk matches each payment by hand. The expensive mistakes are posting money to the wrong family and chasing a family that has already paid.
 
 **Reconcile** reads the care home's own bank and billing exports and works out which payment settles which invoice. It **posts only what it can prove**, queues everything else for a clerk with a suggested answer and the evidence, and **drafts reminders only when no unexplained money could belong to that family**.
 
@@ -58,9 +67,44 @@ This project is organised the way I would run an engagement with a care-home gro
 | **5. Fit their workflow** | No second tool to babysit | Weekly runs safe to repeat, a review queue app, reminder drafts with safety holds, an audit log, and a lettrage export back to the billing software. The run fails if the money does not balance | `make app`, `make run`, `make export` |
 | **6. Harden for production** | Safe on real data, on day one | Four independent reviews found 12 correctness bugs and 8 security issues, all fixed and tested. A week-by-week plan for a real client: replay, shadow, switch on what certifies | [review log](docs/review-log.md), [first weeks](docs/first-weeks.md) |
 
+## How a payment is decided
+
+Every bank line goes through the same path, every week. Nothing is posted on a hunch: a line is auto-posted only when the evidence clears a threshold certified on the client's own history.
+
+```mermaid
+flowchart TD
+    L["New bank line<br/>(weekly export, imported once)"] --> C["Candidate matches<br/>mandate · reference · statement · bulk subset · name"]
+    C --> S["Score each candidate<br/>rules with readable reasons"]
+    S --> Q1{"Certified threshold met,<br/>one valid allocation,<br/>known bank layout?"}
+    Q1 -- yes --> A["Auto-post"]
+    Q1 -- no --> Q2{"Score above the<br/>review threshold?"}
+    Q2 -- yes --> R["Review queue<br/>suggestion + evidence"]
+    Q2 -- no --> U["Unapplied<br/>(suspense)"]
+    R --> H["Clerk: accept · pick · reject"]
+    A --> B{"Money balances?"}
+    H --> B
+    B -- no --> X["Run fails"]
+    B -- yes --> M["Reminders · audit log · lettrage export"]
+    classDef good fill:#e8f1f8,stroke:#1f5f8b,color:#1b1f24
+    classDef stop fill:#fdecea,stroke:#c0392b,color:#1b1f24
+    class A,M good
+    class X stop
+```
+
+A reminder goes out only after every hold has been checked, and a person approves it:
+
+```mermaid
+flowchart LR
+    O["Payer's share<br/>15+ days overdue"] --> H{"Any hold?"}
+    H -- "review pending · cash that could be theirs ·<br/>direct debit just returned · resident deceased" --> W["Held, with<br/>the reason shown"]
+    H -- none --> D["Draft reminder"] --> P["Approved by a person<br/>(never sent automatically)"]
+```
+
 ## Results
 
 Rules scorer, test months 10–12, 14 weekly runs. Every number is in `reports/eval_<client>_rules.md`.
+
+<p align="center"><img src="reports/outcomes.png" alt="Where each client's receivable lines ended up: mostly auto-posted direct debits, a small share of other auto-posts, the rest sent to review, a few left unapplied" width="860"></p>
 
 | | Azur (FR, 600 residents) | Maple (UK, 300) | Client 3 (UK, scrambled schema) |
 |---|---:|---:|---:|
@@ -130,7 +174,7 @@ top: reference  score 0.9759
     + same amount as this payer's recent payments
 ```
 
-The evidence is strong, but several payers named Petit have open invoices, so the score sits just under the certified threshold and a clerk confirms it with one click. [`reports/lettrage_azur.csv`](reports/lettrage_azur.csv) is what the billing software would receive (generated names).
+The evidence is strong, but several payers named Petit have open invoices, so the score sits just under the certified threshold and a clerk confirms it with one click. `make export CLIENT=azur` writes the lettrage CSV the billing software would receive.
 
 <details>
 <summary><b>All commands</b></summary>
@@ -149,6 +193,13 @@ make lint                              # ruff + ty
 </details>
 
 ## Onboarding a new client
+
+```mermaid
+flowchart LR
+    E["Client's raw exports<br/>bank · invoices · payers · statements"] --> P["Profiler + mapper<br/>propose a YAML template"]
+    P --> H{"Person confirms<br/>the flagged guesses"}
+    H --> V["Load with drift and<br/>data-quality checks"]
+```
 
 Client 3 has different headers, a signed amount instead of debit/credit columns, other category codes and a junk column. `make onboard` proposes a template and flags what it inferred from the data rather than from headers, for a human to confirm:
 

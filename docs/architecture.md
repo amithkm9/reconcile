@@ -81,7 +81,8 @@ flowchart TB
 | `data/<client>/` | The client's exports (synthetic) | no (`make data`) |
 | `data/<client>/_truth/` | The answer key. Read by `evaluate.py` only, never by the pipeline | no |
 | `state/<client>.sqlite` | Ledger, decisions, labels, reminders, runs; the model file sits next to it, with its hash in `meta` | no |
-| `reports/` | Eval reports, metrics JSON, plots, sample lettrage export | yes (synthetic only) |
+| `reports/` | Eval reports, metrics JSON and plots | yes (synthetic only) |
+| `reports/lettrage_<client>.csv` | Lettrage export for the billing software (`make export`) | no |
 | `reports/audit_<client>.jsonl` | Audit log | no |
 | `llm_cache/` | Recorded LLM responses for replay (created on the first run with a key) | no |
 
