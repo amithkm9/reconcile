@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import sqlite3
 from collections import defaultdict
 from pathlib import Path
@@ -30,6 +31,7 @@ from reconcile.ledger import Ledger
 from reconcile.normalize import label_signature
 from reconcile.reminders import run_reminders
 from reconcile.review import SimReviewer, apply_decision
+from reconcile.scorer import Scorer
 
 REDECIDE_DAYS = 56
 NAME_TRUTH_TYPES = {"one_to_one", "split_share", "partial", "multi_month", "overpay"}
@@ -52,7 +54,7 @@ def run_week(
     M: Matcher,
     as_of: dt.date,
     *,
-    scorer,
+    scorer: Scorer | None,
     th: Thresholds | None,
     run_id: str,
     mode: str = "decide",
@@ -63,6 +65,13 @@ def run_week(
     collect: list | None = None,
     do_reminders: bool = True,
 ) -> dict:
+    """One weekly run, as of `as_of`: import the bank lines exported by then (idempotent), generate
+    and score candidates for every undecided line, allocate greedily, decide auto / review /
+    unapplied / non-AR, post the auto lines, let `reviewer` (if any) work the queue, draft or hold
+    reminders, append to the audit log, and fail if the money does not balance.
+
+    `mode="teacher"` posts the historical lettrage from `truth` instead of deciding (months the
+    client has already reconciled); `collect` receives one training row per candidate."""
     bank = L.data.bank
     avail = bank[bank.file_end <= as_of]
     n_new = L.import_lines(avail.to_dict("records"))
@@ -191,6 +200,7 @@ def _decide(L, pending, results, feats, th, run_id, as_of, reviewer, audit, stat
         if res.kind == "non_ar":
             out = "non_ar"
         elif h in chosen:
+            assert top is not None  # a chosen line always has its candidate
             out = outcome(top.score, int(top.signals.get("n_valid", 1)), th)
         else:
             out = "unapplied"
@@ -210,7 +220,7 @@ def _decide(L, pending, results, feats, th, run_id, as_of, reviewer, audit, stat
             "stranded": h in stranded,
             "top_edges": [list(e) for e in top.edges] if top and out == "review" else [],
         }
-        if out == "auto" and _new_format(L, line):
+        if out == "auto" and top is not None and _new_format(L, line):
             # never auto-post a label layout no human has confirmed yet: the bank changed its
             # format and nothing the scorer learned is evidence about it
             out = dec["outcome"] = dec["system_outcome"] = "review"
@@ -219,7 +229,7 @@ def _decide(L, pending, results, feats, th, run_id, as_of, reviewer, audit, stat
             stats["guard_new_format"] += 1
         L.decisions[h] = dec
         stats[out] += 1
-        if out == "auto":
+        if out == "auto" and top is not None:
             L.post(
                 h,
                 list(top.edges),
@@ -234,7 +244,7 @@ def _decide(L, pending, results, feats, th, run_id, as_of, reviewer, audit, stat
                 bank_hash=h,
                 outcome=out,
                 score=top.score if top else None,
-                edges=dec["top"]["edges"] if top else None,
+                edges=dec["top"]["edges"] if dec["top"] else None,
                 reasons=top.reasons if top else [],
                 run_id=run_id,
                 as_of=as_of,
@@ -279,7 +289,8 @@ def _new_format(L: Ledger, line: dict) -> bool:
 
 def check_balance(L: Ledger) -> dict:
     """Every euro is accounted for: credits = allocated + unapplied (suspense) + non-AR income,
-    no bank line is over-allocated, and no invoice share is allocated beyond its amount."""
+    no bank line is over-allocated, and no invoice share is allocated beyond its gross amount
+    (a share paid and then reduced by a credit note is reported as refund due)."""
     posted: dict[str, int] = defaultdict(int)
     for a in L.allocations:
         posted[a["bank_hash"]] += a["cents"]
@@ -295,7 +306,14 @@ def check_balance(L: Ledger) -> dict:
             t[f"{side}_allocated"] += p
             t[f"{side}_suspense"] += amt - p
             over_lines += int(abs(p) > abs(amt))
-    over_shares = sum(1 for k, v in L.allocated.items() if v > L.shares[k].cents)
+    # A credit note issued after the share was paid leaves the payer in credit: that is money to
+    # refund, not an error. Only allocation beyond the invoice's gross amount is an error.
+    over_shares = sum(1 for k, v in L.allocated.items() if v > L.shares[k].gross_cents)
+    refund_due = sum(
+        v - L.shares[k].cents
+        for k, v in L.allocated.items()
+        if L.shares[k].cents < v <= L.shares[k].gross_cents
+    )
     ok = (
         over_lines == 0
         and over_shares == 0
@@ -305,6 +323,7 @@ def check_balance(L: Ledger) -> dict:
         "ok": ok,
         "over_allocated_lines": over_lines,
         "over_allocated_shares": over_shares,
+        "refund_due_cents": refund_due,
         **dict(t),
     }
 
@@ -321,10 +340,17 @@ def _jd(o):
 
 
 def save_state(L: Ledger, path: Path, meta: dict) -> None:
+    """Write the ledger to sqlite. `meta` holds run settings (client, scorer, thresholds); learned
+    aliases and new-layout review counts are added here. The file is written next to `path` and
+    swapped in atomically, so a crash mid-write never leaves a half-saved state."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
-        path.unlink()
-    con = sqlite3.connect(path)
+    meta = meta | {
+        "aliases": [[k, sorted(v)] for k, v in sorted(L.aliases.items())],
+        "sig_review": dict(L.sig_review),
+    }
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.unlink(missing_ok=True)
+    con = sqlite3.connect(tmp)
     con.execute("CREATE TABLE meta (k TEXT PRIMARY KEY, v TEXT)")
     con.execute(
         "CREATE TABLE bank_lines (bank_hash TEXT PRIMARY KEY, date TEXT, label TEXT, reference TEXT, amount_cents INTEGER, source_file TEXT)"
@@ -406,6 +432,7 @@ def save_state(L: Ledger, path: Path, meta: dict) -> None:
     )
     con.commit()
     con.close()
+    os.replace(tmp, path)
 
 
 def _undate(d: dict, keys=("date", "as_of")) -> dict:
@@ -435,27 +462,20 @@ def load_state(L: Ledger, path: Path) -> dict:
             "amount_cents": amt,
             "source_file": src,
         }
-    for h, k, inv, c, src, run, d in con.execute("SELECT * FROM allocations"):
-        L.allocated[k] += c
-        if c < 0:
-            L.returned[k] += -c
-        L.allocations.append(
-            {
-                "bank_hash": h,
-                "share_key": k,
-                "invoice_id": inv,
-                "cents": c,
-                "source": src,
-                "run_id": run,
-                "date": dt.date.fromisoformat(d),
-            }
-        )
-        if c > 0:
-            L.pid_history[L.shares[k].pid].append(
-                (dt.date.fromisoformat(d), L.lines[h]["amount_cents"])
-            )
-    for h in {a["bank_hash"] for a in L.allocations}:
-        L.signature_counts[label_signature(L.lines[h]["label"])] += 1
+    # Replay postings in their original order through the same code path as a live post, so
+    # derived state (payer history, trusted label layouts) matches the ledger that was saved.
+    posting: tuple | None = None
+    edges: list[tuple[str, int]] = []
+    for h, k, _inv, c, src, run, d in con.execute("SELECT * FROM allocations ORDER BY rowid"):
+        if (h, src, run, d) != posting:
+            if posting:
+                L.record(
+                    posting[0], edges, posting[1], posting[2], dt.date.fromisoformat(posting[3])
+                )
+            posting, edges = (h, src, run, d), []
+        edges.append((k, c))
+    if posting:
+        L.record(posting[0], edges, posting[1], posting[2], dt.date.fromisoformat(posting[3]))
     for (doc,) in con.execute("SELECT doc FROM decisions"):
         d = _undate(json.loads(doc))
         d["top"] = _restore_option(d.get("top"))
