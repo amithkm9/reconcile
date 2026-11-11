@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from reconcile.generate.__main__ import generate_client, load_cfg
+from reconcile.generate import generate_client, load_cfg
 from reconcile.generate.world import build_world
 
 SMALL = {"n_residents": 60, "months": 12}
