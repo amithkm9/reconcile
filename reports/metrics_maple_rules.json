@@ -1,0 +1,272 @@
+{
+  "test_lines": 778,
+  "test_ar_lines": 764,
+  "test_weeks": 14,
+  "auto_lines": 468,
+  "auto_correct": 463,
+  "auto_precision": 0.9893,
+  "auto_precision_lb95": 0.9777,
+  "edge_precision": 0.9925,
+  "amount_weighted_precision": 0.994,
+  "automation_rate": 0.6126,
+  "automation_rate_eur": 0.6596,
+  "suggestion_recall": 0.7984,
+  "review_lines": 263,
+  "review_per_week": 18.8,
+  "candidate_recall_all_months": 0.9483,
+  "candidate_recall_by_type": {
+    "bulk_no_remit": 0.9655,
+    "bulk_remit": 0.9712,
+    "dd": 0.9994,
+    "dd_return": 0.0,
+    "multi_month": 0.8438,
+    "one_to_one": 0.9171,
+    "overpay": 0.8846,
+    "partial": 0.8978,
+    "split_share": 0.9144
+  },
+  "confusion": {
+    "ar->auto": 468,
+    "ar->review": 262,
+    "ar->unapplied": 34,
+    "non_ar->non_ar": 6,
+    "unapplied->review": 1,
+    "unapplied->unapplied": 7
+  },
+  "by_match_type": {
+    "bulk_no_remit": {
+      "n": 10,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.8
+    },
+    "bulk_remit": {
+      "n": 32,
+      "automation": 0.6562,
+      "auto_precision": 1.0,
+      "suggestion_recall": 1.0
+    },
+    "dd": {
+      "n": 433,
+      "automation": 1.0,
+      "auto_precision": 1.0,
+      "suggestion_recall": 1.0
+    },
+    "dd_return": {
+      "n": 10,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.0
+    },
+    "multi_month": {
+      "n": 94,
+      "automation": 0.0426,
+      "auto_precision": 0.0,
+      "suggestion_recall": 0.1383
+    },
+    "one_to_one": {
+      "n": 44,
+      "automation": 0.1136,
+      "auto_precision": 0.8,
+      "suggestion_recall": 0.75
+    },
+    "overpay": {
+      "n": 5,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.0
+    },
+    "partial": {
+      "n": 38,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.5
+    },
+    "split_share": {
+      "n": 98,
+      "automation": 0.051,
+      "auto_precision": 1.0,
+      "suggestion_recall": 0.7347
+    }
+  },
+  "by_shift": {
+    "label_format": {
+      "n": 257,
+      "automation": 0.0545,
+      "auto_precision": 0.6429,
+      "suggestion_recall": 0.5331
+    },
+    "married_name": {
+      "n": 22,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.0
+    },
+    "none": {
+      "n": 474,
+      "automation": 0.943,
+      "auto_precision": 1.0,
+      "suggestion_recall": 0.9747
+    },
+    "remit_layout": {
+      "n": 11,
+      "automation": 0.6364,
+      "auto_precision": 1.0,
+      "suggestion_recall": 1.0
+    }
+  },
+  "reminders_drafted": 117,
+  "reminders_held": {
+    "deceased": 25,
+    "pending_review": 16,
+    "unapplied_cash": 340
+  },
+  "reminders_delayed_by_holds": 299,
+  "wrong_reminders": 4,
+  "wrong_reminder_examples": [
+    "INV-00969",
+    "INV-01273",
+    "INV-02392",
+    "INV-02575"
+  ],
+  "missed_reminders": 4,
+  "balance_ok_all_runs": true,
+  "greedy_components_checked": 135,
+  "greedy_suboptimal": 3,
+  "stranded_lines": 0,
+  "errors": [
+    {
+      "date": "2025-10-03",
+      "label": "FP MRS S MORGAN IN",
+      "reference": "",
+      "amount": 5618.75,
+      "truth_type": "one_to_one",
+      "shift": "label_format",
+      "predicted": [
+        [
+          "INV-02395",
+          561875
+        ]
+      ],
+      "truth": [
+        [
+          "INV-02990",
+          561875
+        ]
+      ]
+    },
+    {
+      "date": "2025-10-10",
+      "label": "FP S COLLINS",
+      "reference": "",
+      "amount": 4740.0,
+      "truth_type": "multi_month",
+      "shift": "label_format",
+      "predicted": [
+        [
+          "INV-02689",
+          474000
+        ]
+      ],
+      "truth": [
+        [
+          "INV-02392",
+          134800
+        ],
+        [
+          "INV-02689",
+          339200
+        ]
+      ]
+    },
+    {
+      "date": "2025-10-16",
+      "label": "FP D THOMAS",
+      "reference": "",
+      "amount": 1323.0,
+      "truth_type": "multi_month",
+      "shift": "label_format",
+      "predicted": [
+        [
+          "INV-02479",
+          132300
+        ]
+      ],
+      "truth": [
+        [
+          "INV-01878",
+          122010
+        ],
+        [
+          "INV-02179",
+          10290
+        ]
+      ]
+    },
+    {
+      "date": "2025-12-02",
+      "label": "FP MRS S MORGAN MU",
+      "reference": "",
+      "amount": 5618.75,
+      "truth_type": "multi_month",
+      "shift": "label_format",
+      "predicted": [
+        [
+          "INV-02990",
+          561875
+        ]
+      ],
+      "truth": [
+        [
+          "INV-02395",
+          18125
+        ],
+        [
+          "INV-03288",
+          543750
+        ]
+      ]
+    },
+    {
+      "date": "2025-12-14",
+      "label": "FP R PRICE",
+      "reference": "",
+      "amount": 1083.6,
+      "truth_type": "multi_month",
+      "shift": "label_format",
+      "predicted": [
+        [
+          "INV-03220",
+          108360
+        ]
+      ],
+      "truth": [
+        [
+          "INV-02922",
+          82972
+        ],
+        [
+          "INV-03220",
+          25388
+        ]
+      ]
+    }
+  ],
+  "client": "maple",
+  "scorer": "rules",
+  "thresholds": {
+    "auto": 0.9933071490757153,
+    "review": 0.3775406687981454,
+    "certified_lb": 0.9917181754133102,
+    "n_at_auto": 1427,
+    "k_at_auto": 1421,
+    "target": 0.99
+  },
+  "n_train_rows": 23855,
+  "n_threshold_rows": 9948,
+  "threshold_set": {
+    "lines": 2271,
+    "correct_chosen": 1984,
+    "months": "1-9"
+  }
+}

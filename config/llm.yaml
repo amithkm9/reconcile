@@ -1,0 +1,6 @@
+# USD per million tokens (Anthropic first-party API, as of 2026-11). Check before quoting costs.
+prices:
+  claude-sonnet-5-5: {input: 2.00, output: 10.00}
+  claude-haiku-5-5: {input: 0.10, output: 0.50}
+default_model: claude-sonnet-5-5
+max_tokens: 16000

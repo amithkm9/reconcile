@@ -1,0 +1,77 @@
+client: maple
+language: en
+proposed_by: fallback
+files:
+  bank:
+    path: bank/statement_*.csv
+    encoding: utf-8-sig
+    sep: ','
+    date_format: '%d/%m/%Y'
+    decimal: .
+    amount_mode: debit_credit
+    columns:
+      date: Transaction Date
+      label: Transaction Description
+      debit: Debit Amount
+      credit: Credit Amount
+  payers:
+    path: funding.csv
+    encoding: utf-8-sig
+    sep: ','
+    date_format: '%Y-%m-%d'
+    decimal: .
+    columns:
+      resident_id: resident_ref
+      payer_name: payer_name
+      payer_type: payer_type
+      share_pct: share_pct
+      resident_name: resident_name
+      mandate_ref: dd_reference
+      resident_exit_date: discharge_date
+    values:
+      payer_type:
+        Self-funder: resident
+        Family top-up: family
+        Local authority: public_aid
+        NHS: health_funder
+  invoices:
+    path: invoices.csv
+    encoding: utf-8-sig
+    sep: ','
+    date_format: '%Y-%m-%d'
+    decimal: .
+    period_format: date
+    columns:
+      invoice_id: invoice_no
+      resident_id: resident_ref
+      facility: home
+      issue_date: issue_date
+      due_date: due_date
+      period: period_start
+      doc_type: doc_type
+      amount: amount
+      original_invoice: original_invoice
+      resident_name: resident_name
+    values:
+      doc_type:
+        INV: invoice
+        CRN: credit
+  remittances:
+    path: remittances.csv
+    encoding: utf-8-sig
+    sep: ','
+    date_format: '%Y-%m-%d'
+    decimal: .
+    period_format: '%Y-%m'
+    columns:
+      remittance_id: remittance_id
+      date: payment_date
+      payer_name: authority
+      beneficiary_name: resident_name
+      period: period
+      amount: net
+      facility: home
+patterns:
+  invoice: INV\-\d{5}
+  mandate: MCH\d{6}
+  remittance: RA\d{6}

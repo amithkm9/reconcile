@@ -108,6 +108,7 @@ class Matcher:
                 for t in tokens(norm_name(s.resident_name)):
                     if len(t) >= 3:
                         self.surname_pids[t].add(s.pid)
+        self.mandate_prefixes = sorted(self.mandate_pid)
         rem = ledger.data.remittances
         self.remit_rows: dict[str, list[dict]] = defaultdict(list)
         for r in rem.to_dict("records"):
@@ -167,9 +168,7 @@ class Matcher:
     # ---- 1. returned direct debits ----
     def _dd_return(self, line, text) -> list[Cand]:
         amount = int(line["amount_cents"])
-        pids = {
-            self.mandate_pid[m] for m in find_pattern(text, self.p_mandate) if m in self.mandate_pid
-        }
+        pids = set(self._mandate_pids(text))
         invs = set(find_pattern(text, self.p_invoice))
         out = []
         for s in self._shares_for(pids, invs):
@@ -194,17 +193,34 @@ class Matcher:
             return [s for s in shares if not pids or s.pid in pids]
         return [s for p in sorted(pids) for s in self.L.by_pid.get(p, [])]
 
+    def _mandate_pids(self, text: str) -> list[str]:
+        """Payers whose direct-debit mandate is in the text: exact pattern hits, else a truncated
+        reference (UK schemes cut at 18 chars) that is the prefix of exactly one known mandate."""
+        exact = [self.mandate_pid[m] for m in find_pattern(text, self.p_mandate) if m in self.mandate_pid]
+        if exact:
+            return exact
+        for tok in reversed(text.upper().split()):
+            if len(tok) >= 6:
+                hits = [m for m in self.mandate_prefixes if m.startswith(tok)]
+                if len(hits) == 1:
+                    return [self.mandate_pid[hits[0]]]
+        return []
+
     # ---- 2. mandate / invoice number ----
     def _reference(self, line, text, amount, d) -> list[Cand]:
-        mand = [
-            self.mandate_pid[m] for m in find_pattern(text, self.p_mandate) if m in self.mandate_pid
-        ]
+        mand = self._mandate_pids(text)
         invs = [i for i in find_pattern(text, self.p_invoice) if i in self.L.by_invoice]
         out = []
         if mand:
             pid = mand[0]
             avail = [(s.key, self.L.open(s.key)) for s in self.L.open_shares(pid, d)]
+            # a reference cut by the payment scheme ('INV-0001' for INV-00012) still identifies
+            # the invoice among this payer's own open invoices if it is a unique prefix
+            cut = [t for t in text.upper().split() if len(t) >= 5]
             refd = [a for a in avail if a[0].split("|")[0] in invs]
+            if not refd:
+                pref = [a for a in avail if any(a[0].split("|")[0].startswith(t) for t in cut)]
+                refd = pref if len(pref) == 1 else []
             edges, left = allocate_with_reference(amount, refd, avail)
             if edges:
                 out.append(
@@ -387,12 +403,18 @@ class Matcher:
         if len(pid_score) > 12:  # too generic a name (e.g. a common surname): keep the best
             pid_score = dict(sorted(pid_score.items(), key=lambda kv: (-kv[1], kv[0]))[:12])
         months = month_tokens(text)
+        # payers (with something open) whose name matches about as well as the best one: 'B EVANS'
+        # could be Barbara or Brian Evans; that is real ambiguity, not a scoring detail
+        live = {pid: sc for pid, sc in pid_score.items() if self.L.open_shares(pid, d)}
+        best = max(live.values(), default=0)
+        n_close = sum(1 for sc in live.values() if sc >= best - 5) if best > 0 else 0
         out = []
         for pid, score in pid_score.items():
             opens = self.L.open_shares(pid, d)
             if not opens:
                 continue
             sig = {
+                "n_close_pids": n_close,
                 "name_score": score,
                 "alias_hit": int(pid in alias_hit),
                 "resident_hit": int(pid in res_hit),

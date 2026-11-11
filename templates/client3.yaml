@@ -1,0 +1,76 @@
+client: client3
+language: en
+proposed_by: fallback
+files:
+  remittances:
+    path: authority_remits.csv
+    encoding: utf-8-sig
+    sep: ;
+    date_format: '%m/%d/%Y'
+    decimal: ','
+    period_format: '%Y-%m'
+    columns:
+      remittance_id: Remit No
+      date: Paid On
+      payer_name: Authority
+      beneficiary_name: Client
+      period: For Month
+      amount: Paid GBP
+      facility: Site
+  bank:
+    path: bank/txns_*.csv
+    encoding: utf-8-sig
+    sep: ;
+    date_format: '%m/%d/%Y'
+    decimal: ','
+    amount_mode: signed
+    columns:
+      date: Posted
+      label: Narrative
+      amount: Value
+  invoices:
+    path: billing_export.csv
+    encoding: utf-8-sig
+    sep: ;
+    date_format: '%m/%d/%Y'
+    decimal: ','
+    period_format: date
+    columns:
+      invoice_id: Bill Ref
+      resident_id: Client Code
+      facility: Site
+      issue_date: Raised On
+      due_date: Pay By
+      period: Covers From
+      doc_type: Kind
+      amount: Total GBP
+      original_invoice: Against Bill
+      resident_name: Client
+    values:
+      doc_type:
+        BILL: invoice
+        ADJ: credit
+  payers:
+    path: funding_sources.csv
+    encoding: utf-8-sig
+    sep: ;
+    date_format: '%m/%d/%Y'
+    decimal: .
+    columns:
+      resident_id: Client Code
+      payer_name: Funder
+      payer_type: Funding Stream
+      share_pct: Portion
+      resident_name: Client
+      mandate_ref: Mandate
+      resident_exit_date: Left On
+    values:
+      payer_type:
+        SELF: resident
+        COUNCIL: public_aid
+        ICB-FNC: health_funder
+        TPT: family
+patterns:
+  invoice: INV\-\d{5}
+  mandate: MCH\d{6}
+  remittance: RA\d{6}

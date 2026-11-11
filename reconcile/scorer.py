@@ -60,6 +60,7 @@ RULES = [
     (lambda f: f["skips_older_open"] > 0, -1.0, "skips an older open invoice"),
     (lambda f: f["month_hit"], 0.5, "month in the label matches the invoice period"),
     (lambda f: f["n_pids_line"] > 1, -1.0, "several payers could match this line"),
+    (lambda f: f["n_close_pids"] > 1, -2.5, "another payer has an equally close name"),
     (lambda f: f["hist_amount_match"], 0.7, "same amount as this payer's recent payments"),
 ]
 BIAS = -1.5

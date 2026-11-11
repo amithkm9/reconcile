@@ -97,6 +97,7 @@ def candidate_features(c: Cand, line: dict, L: Ledger) -> dict:
         "inv_ref_hit": s.get("inv_ref_hit", 0),
         "month_hit": int(bool(months) and any(int(sh.period[5:]) in months for sh in shares)),
         "name_score": s.get("name_score", 0.0),
+        "n_close_pids": s.get("n_close_pids", 0),
         "alias_hit": s.get("alias_hit", 0),
         "resident_hit": s.get("resident_hit", 0),
         "remit_backed": s.get("remit_backed", 0),

@@ -1,0 +1,55 @@
+# Vocabulary for the deterministic mapper: generic FR/EN accounting and care-home words.
+# It must stay generic: the mapping eval draws its headers from a separate, generator-only pool
+# (config/variant_pool.yaml), so anything copied from there would inflate the score.
+roles:
+  invoices: [facture, factures, invoice, invoices, billing, bill, bills, sales, ventes]
+  payers: [payeur, payeurs, payer, payers, funding, funder, tiers, debiteur, contributors]
+  remittances: [avis, remittance, remittances, remit, advice, etat, bordereau, statement of payment]
+  bank: [releve, bancaire, bank, statement, txns, transactions, compte, account]
+fields:
+  invoices:
+    invoice_id: [numero facture, n facture, no facture, invoice number, invoice no, invoice id, invoice ref, bill ref, numero piece, piece, reference facture, document number]
+    issue_date: [date facture, date emission, invoice date, issue date, date, issued, raised, date document]
+    due_date: [echeance, date echeance, due date, due, pay by, date limite paiement, payment due]
+    resident_id: [code resident, id resident, resident id, resident ref, resident code, client code, client id, matricule, patient id]
+    resident_name: [nom resident, resident name, resident, client, client name, name, nom complet, patient]
+    resident_last: [nom, nom de famille, surname, last name, family name]
+    resident_first: [prenom, first name, forename, given name]
+    facility: [etablissement, site, home, care home, facility, residence, ehpad, maison]
+    period: [periode, period, mois, month, period start, covers from, from, debut periode]
+    doc_type: [type, type document, type piece, doc type, document type, kind, nature]
+    amount: [montant, montant ttc, total ttc, amount, total, amount due, gross, montant facture, value]
+    original_invoice: [facture d origine, facture origine, original invoice, against invoice, against bill, credit for, avoir sur]
+  payers:
+    resident_id: [code resident, id resident, resident id, resident ref, resident code, client code, client id, matricule]
+    resident_name: [nom resident, resident name, resident, client, client name, beneficiaire]
+    payer_name: [nom payeur, payeur, payer, payer name, funder, funder name, paid by, debiteur, tiers payeur]
+    payer_type: [type payeur, payer type, funding type, funding stream, type financeur, category, funding source]
+    share_pct: [part, part %, pourcentage, share, share pct, share %, portion, percent, quote part]
+    mandate_ref: [rum, mandat, mandate, mandate ref, dd reference, direct debit ref, reference mandat, dd ref]
+    resident_exit_date: [date sortie, sortie, date deces, discharge date, left on, end date, leaving date]
+  remittances:
+    remittance_id: [numero avis, n avis, avis, remittance id, remittance no, remittance ref, remit no, advice number]
+    date: [date avis, date, payment date, paid on, date paiement, value date]
+    payer_name: [payeur, departement, authority, council, payer, financeur, local authority]
+    facility: [etablissement, site, home, facility, care home]
+    beneficiary_name: [beneficiaire, resident, resident name, client, service user, nom]
+    period: [periode, period, mois, month, for month]
+    amount: [montant, amount, net, paid, montant verse, paid amount, net amount]
+  bank:
+    date: [date operation, date, transaction date, posted, booking date, date comptable]
+    label: [libelle, description, transaction description, narrative, label, details, wording]
+    reference: [reference, ref, motif, remittance information, payment reference]
+    debit: [debit, debit amount, paid out, sortie, money out, withdrawal]
+    credit: [credit, credit amount, paid in, entree, money in, deposit]
+    amount: [montant, amount, value, signed amount, transaction amount]
+values:
+  payer_type:
+    resident: [resident, résident, self, self funder, self-funder, self pay, private, own funds, patient]
+    family: [famille, family, family top-up, top up, relative, third party, proche, obligé alimentaire]
+    public_aid: [aide sociale, departement, département, aide sociale departement, local authority, council, la, conseil departemental, social services]
+    guardian: [tuteur, tutelle, udaf, mandataire, guardian, deputy, curateur]
+    health_funder: [nhs, icb, ccg, chc, fnc, assurance maladie, cpam, health]
+  doc_type:
+    invoice: [facture, invoice, inv, bill, charge]
+    credit: [avoir, credit, credit note, crn, cn, refund note, reversal]

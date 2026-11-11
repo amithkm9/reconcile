@@ -154,7 +154,10 @@ def evaluate_client(
         history = prepare_history(data, truth)
     L, M, train, thr, months, test_start = history
     scorer = fit_scorer(scorer_kind, train, thr)
-    s_thr, c_thr, _ = chosen_per_line(thr, scorer.score([r["features"] for r in thr]))
+    # A fixed (untrained) scorer has never seen any history month, so all nine are out-of-sample
+    # for it; a trained model may only be thresholded on months it was not trained on (8-9).
+    sel = train + thr if scorer_kind == "rules" else thr
+    s_thr, c_thr, _ = chosen_per_line(sel, scorer.score([r["features"] for r in sel]))
     th = choose_thresholds(s_thr, c_thr)
     reviewer = SimReviewer(truth.keys, reviewer_error)
     audit = AuditLog(
@@ -188,7 +191,8 @@ def evaluate_client(
         "thresholds": th.as_dict(),
         "n_train_rows": len(train),
         "n_threshold_rows": len(thr),
-        "threshold_set": {"lines": int(len(s_thr)), "correct_chosen": int(c_thr.sum())},
+        "threshold_set": {"lines": int(len(s_thr)), "correct_chosen": int(c_thr.sum()),
+                          "months": "1-9" if scorer_kind == "rules" else "8-9"},
     }
     run = EvalRun(client, data, truth, L, scorer, th, train, thr, test_rows, weeks, metrics)
     if out_dir:
@@ -411,7 +415,7 @@ def write_report(run: EvalRun, out_dir: Path) -> Path:
         f"| Money balances after every weekly run | {m['balance_ok_all_runs']} |",
         f"| Candidate recall (truth among candidates, all months) | {_pct(m['candidate_recall_all_months'])} |",
         "",
-        "## Thresholds (chosen on months 8-9 only)",
+        f"## Thresholds (chosen on months {m['threshold_set']['months']} only; never on test months)",
         "",
         f"- auto >= {th.auto:.4f}: CP lower bound {_pct(th.certified_lb)} on {th.n_at_auto} chosen candidates ({th.k_at_auto} correct)",
         f"- review >= {th.review:.4f}",

@@ -2,37 +2,38 @@
   "test_lines": 1981,
   "test_ar_lines": 1928,
   "test_weeks": 14,
-  "auto_lines": 1492,
-  "auto_correct": 1488,
-  "auto_precision": 0.9973,
-  "auto_precision_lb95": 0.9939,
-  "edge_precision": 0.9973,
-  "amount_weighted_precision": 0.9987,
-  "automation_rate": 0.7739,
-  "automation_rate_eur": 0.6416,
-  "suggestion_recall": 0.902,
-  "review_lines": 379,
-  "review_per_week": 27.1,
-  "candidate_recall_all_months": 0.99,
+  "auto_lines": 1542,
+  "auto_correct": 1536,
+  "auto_precision": 0.9961,
+  "auto_precision_lb95": 0.9923,
+  "edge_precision": 0.9958,
+  "amount_weighted_precision": 0.9978,
+  "automation_rate": 0.7993,
+  "automation_rate_eur": 0.7231,
+  "suggestion_recall": 0.9134,
+  "review_lines": 353,
+  "review_per_week": 25.2,
+  "candidate_recall_all_months": 0.9917,
   "candidate_recall_by_type": {
     "bulk_no_remit": 0.9706,
     "bulk_remit": 1.0,
-    "dd": 0.9989,
+    "dd": 0.9991,
     "dd_return": 0.9789,
     "guardian_bulk": 0.9167,
-    "multi_month": 0.8825,
+    "multi_month": 0.9086,
     "one_to_one": 0.9871,
-    "overpay": 0.9167,
+    "overpay": 0.9583,
     "partial": 0.9735,
     "split_share": 0.9968
   },
   "confusion": {
-    "ar->auto": 1492,
-    "ar->review": 375,
-    "ar->unapplied": 61,
+    "ar->auto": 1541,
+    "ar->review": 351,
+    "ar->unapplied": 36,
     "non_ar->non_ar": 36,
-    "unapplied->review": 4,
-    "unapplied->unapplied": 13
+    "unapplied->auto": 1,
+    "unapplied->review": 2,
+    "unapplied->unapplied": 14
   },
   "by_match_type": {
     "bulk_no_remit": {
@@ -43,13 +44,13 @@
     },
     "bulk_remit": {
       "n": 46,
-      "automation": 0.0217,
+      "automation": 0.5652,
       "auto_precision": 1.0,
       "suggestion_recall": 1.0
     },
     "dd": {
       "n": 1425,
-      "automation": 0.9951,
+      "automation": 0.9958,
       "auto_precision": 1.0,
       "suggestion_recall": 0.9972
     },
@@ -67,41 +68,41 @@
     },
     "multi_month": {
       "n": 151,
-      "automation": 0.0464,
-      "auto_precision": 0.5714,
-      "suggestion_recall": 0.3245
+      "automation": 0.0927,
+      "auto_precision": 0.7143,
+      "suggestion_recall": 0.3576
     },
     "one_to_one": {
       "n": 133,
-      "automation": 0.188,
+      "automation": 0.2782,
       "auto_precision": 1.0,
-      "suggestion_recall": 0.8947
+      "suggestion_recall": 0.9098
     },
     "overpay": {
       "n": 10,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.6
+      "suggestion_recall": 0.8
     },
     "partial": {
       "n": 63,
-      "automation": 0.0317,
-      "auto_precision": 0.5,
+      "automation": 0.0794,
+      "auto_precision": 0.8,
       "suggestion_recall": 0.619
     },
     "split_share": {
       "n": 65,
-      "automation": 0.2615,
+      "automation": 0.2769,
       "auto_precision": 1.0,
-      "suggestion_recall": 0.8462
+      "suggestion_recall": 0.8615
     }
   },
   "by_shift": {
     "label_format": {
       "n": 415,
-      "automation": 0.1229,
-      "auto_precision": 0.9216,
-      "suggestion_recall": 0.6434
+      "automation": 0.1783,
+      "auto_precision": 0.9324,
+      "suggestion_recall": 0.6675
     },
     "married_name": {
       "n": 7,
@@ -111,30 +112,34 @@
     },
     "none": {
       "n": 1489,
-      "automation": 0.9671,
+      "automation": 0.9799,
       "auto_precision": 1.0,
       "suggestion_recall": 0.994
     },
     "remit_layout": {
       "n": 17,
-      "automation": 0.0588,
+      "automation": 0.4706,
       "auto_precision": 1.0,
       "suggestion_recall": 1.0
     }
   },
-  "reminders_drafted": 223,
+  "reminders_drafted": 294,
   "reminders_held": {
     "dd_return": 22,
-    "deceased": 51,
-    "pending_review": 29,
-    "unapplied_cash": 475
+    "deceased": 47,
+    "pending_review": 32,
+    "unapplied_cash": 420
   },
-  "reminders_delayed_by_holds": 340,
-  "wrong_reminders": 0,
-  "wrong_reminder_examples": [],
+  "reminders_delayed_by_holds": 309,
+  "wrong_reminders": 3,
+  "wrong_reminder_examples": [
+    "FA2025-003531",
+    "FA2025-003531",
+    "FA2025-004333"
+  ],
   "missed_reminders": 0,
   "balance_ok_all_runs": true,
-  "greedy_components_checked": 145,
+  "greedy_components_checked": 183,
   "greedy_suboptimal": 2,
   "stranded_lines": 0,
   "errors": [
@@ -163,6 +168,25 @@
       ]
     },
     {
+      "date": "2025-11-13",
+      "label": "VIREMENT RECU /DE GARCIA ANDREE",
+      "reference": "/MOTIF LOYER OCT MAMAN",
+      "amount": 999.44,
+      "truth_type": "unapplied",
+      "shift": "label_format",
+      "predicted": [
+        [
+          "FA2025-005694",
+          3224
+        ],
+        [
+          "FA2025-006296",
+          96720
+        ]
+      ],
+      "truth": []
+    },
+    {
       "date": "2025-12-07",
       "label": "VIREMENT RECU /DE MOREL GERMAINE",
       "reference": "/MOTIF PENSION DEC",
@@ -183,6 +207,30 @@
         [
           "FA2025-006982",
           67000
+        ]
+      ]
+    },
+    {
+      "date": "2025-12-08",
+      "label": "VIREMENT RECU /DE M DENIS LUCIEN",
+      "reference": "/MOTIF NOV FONTAINE",
+      "amount": 2319.0,
+      "truth_type": "multi_month",
+      "shift": "label_format",
+      "predicted": [
+        [
+          "FA2025-006535",
+          231900
+        ]
+      ],
+      "truth": [
+        [
+          "FA2025-006535",
+          125900
+        ],
+        [
+          "FA2025-007130",
+          106000
         ]
       ]
     },
@@ -234,17 +282,18 @@
   "client": "azur",
   "scorer": "rules",
   "thresholds": {
-    "auto": 0.9979746796109501,
-    "review": 0.8175744761936437,
-    "certified_lb": 0.9909691308011921,
-    "n_at_auto": 1011,
-    "k_at_auto": 1007,
+    "auto": 0.995929862284104,
+    "review": 0.6224593312018546,
+    "certified_lb": 0.9950721420958658,
+    "n_at_auto": 4683,
+    "k_at_auto": 4668,
     "target": 0.99
   },
   "n_train_rows": 11978,
   "n_threshold_rows": 3894,
   "threshold_set": {
-    "lines": 1286,
-    "correct_chosen": 1192
+    "lines": 5769,
+    "correct_chosen": 5473,
+    "months": "1-9"
   }
 }
