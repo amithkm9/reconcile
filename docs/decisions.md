@@ -30,9 +30,11 @@ Each entry: what was decided, the alternative, and why. These are the questions 
 
 **Clopper-Pearson lower bound, not the point estimate.** 297 correct out of 300 is "99%" but certifies only about 97.4%. The auto threshold is the lowest score whose one-sided 95% lower bound is ≥ 0.99. When nothing can be certified, nothing is auto-posted. Scanning thresholds adds a little selection bias, which is why the untouched test months are the real check.
 
+**Certify exactly what the rule can release.** Lines with more than one valid allocation are never auto-posted, so they are left out of the set the threshold is certified on. Counting them would let lines that can never be posted veto (or flatter) the threshold.
+
 **Threshold sets differ by scorer, on purpose.** The rules scorer is not trained, so all nine history months are out-of-sample for it. The model is trained on months 1–7, and its threshold is chosen on a two-month shadow run (months 8–9) where it decides live with the review queue worked. That is how it would be switched on in production.
 
-**Shadow run, not teacher-forced rows, for the model's threshold.** Training rows come from historical lettrage, where every earlier payment is perfectly lettered. Live state is not like that: lines wait in review and some are rejected. Thresholding on the shadow run prices that train/serve skew in. As it turned out, the main gap was the held-out format change (below), not the state skew.
+**Shadow run, not teacher-forced rows, for the model's threshold.** Training rows come from historical lettrage, where every earlier payment is perfectly lettered. Live state is not like that: lines wait in review and some are rejected. Thresholding on the shadow run prices that train/serve skew in. As it turned out, the main gap was the held-out format change (below), not the state skew. The shadow run is also small: about 480 lines on the two UK clients, where certifying 99% needs about 299 correct in a row. Both currently fall just short (below).
 
 ## Matching
 
@@ -40,15 +42,17 @@ Each entry: what was decided, the alternative, and why. These are the questions 
 
 **Remittance statements are the primary bulk path; subset-sum is the fallback.** This is how commercial cash-application tools work. Without a statement, the search starts from all of the period's open shares and allows at most 2–3 exclusions and 2 arrears. The simplest explanation wins: only the first level that has any solution counts. More than one valid subset means the line is never auto-posted.
 
-**Greedy allocation, with thresholds applied after it.** Greedy is a ½-approximation of the optimal assignment. The report measures the gap against exhaustive search on small conflict components: greedy found a lower total score in 0–3 of the ~100–190 components checked per evaluation. That is too rare to justify an ILP solver here, but it is measured rather than assumed. Thresholds apply to the allocation actually chosen, not to raw candidates.
+**Greedy allocation, with thresholds applied after it.** Greedy is a ½-approximation of the optimal assignment. The report measures the gap against exhaustive search on small conflict components: greedy found a lower total score in 0–3 of the 87–188 components checked per evaluation. That is too rare to justify an ILP solver here, but it is measured rather than assumed. Thresholds apply to the allocation actually chosen, not to raw candidates.
 
-**Truncated references.** UK payment schemes cut references at 18 characters (`UNPAID DD MCH00008`). A token that is the unique prefix of one known mandate is a mandate hit. A cut invoice number is resolved among that payer's own open invoices.
+**Truncated references.** UK payment schemes cut references at 18 characters. A token that is the unique prefix of one known mandate is a mandate hit, and a cut invoice number is resolved among that payer's own open invoices.
+
+When the cut prefix fits several mandates (`UNPAID DD MCH00001` fits MCH000010 to MCH000019), the candidates are the payers among them who were just debited exactly this amount. Residents often pay the same standard fee, so this frequently stays ambiguous. The line then goes to a reviewer with every candidate and is never auto-posted. Before this, such returns were left unapplied: the ledger believed the invoice was paid, and the reminder was silently missed. That one cause accounted for all 6 missed reminders in the evaluation.
 
 **Names: order-insensitive, but a lone shared word is penalised.** `B PATEL` matches `Barbara Patel`. `RICAHRD CLAIRE` (a typo) must not match every other Claire. The payer name is read from the label only, because reference words dilute it.
 
 ## Safety
 
-**New-format guard with probation.** A label layout never seen in the lettered history cannot be auto-posted. Lines that would otherwise have been auto-posted in it go to review instead. Why it exists: on Azur, the learned model certified 99.0% on months 8–9 but measured 98.2% on the test months. It was 99.8% in-distribution and 90.2% on the bank's new label format.
+**New-format guard with probation.** A label layout never seen in the lettered history cannot be auto-posted. Lines that would otherwise have been auto-posted in it go to review instead. Why it exists: in a run before the guard, the learned model on Azur certified 99.0% on months 8–9 but measured 98.2% on the test months. It was 99.8% in-distribution and 90.2% on the bank's new label format.
 
 The guard lifts by the same rule as the auto threshold: the 95% Clopper-Pearson lower bound on how often reviewers accepted the top suggestion, over the lines the guard held back, must reach 99%. That is about 299 accepted in a row. It took two wrong versions to get here, and both are worth knowing:
 1. *Wrong sample.* Counting every reviewed line in the layout. Partials and multi-month payments go to review in any layout, so acceptance sat at 67% (264/393 on Azur) and the guard could never lift.
@@ -56,13 +60,17 @@ The guard lifts by the same rule as the auto threshold: the 95% Clopper-Pearson 
 
 These numbers are from runs superseded by the current code. The cost of the right rule: a format change means weeks to months of extra review on a small client. The real fix is operational, and it is not built here. A new layout should raise an alert, so that someone teaches the label parser the new layout in week one rather than waiting out probation.
 
+**Reminders per payer share.** An invoice split between the département and a family is two debts with two payers on two schedules, so each share is chased (or held) on its own. An earlier version sent one reminder per invoice, to its first open payer, so a family's share went unchased whenever the département's was also open.
+
 **Reminder holds.** Chasing a family that already paid is the costliest error in this domain. A reminder is held when:
 - any suggestion pending review (top or alternative) touches the invoice;
-- unexplained cash in the last 90 days could belong to the resident, via any of their payers' names, or equals the open share, or equals the payer's 1–3 oldest open shares together (a catch-up payment);
+- unexplained cash in the last 90 days could belong to this payer or resident, via any of their payers' names, or equals the open share, or equals the payer's 1–3 oldest open shares together (a catch-up payment);
 - a direct debit was just returned;
 - the resident has left or died (that goes to the estate process).
 
-The price is measured and reported: reminders for invoices that really were unpaid, delayed by a hold.
+The price is measured and reported: reminders for shares that really were unpaid, delayed by a hold (about 330 per client per quarter). The holds still miss when the paying line exists but nothing links it to the payer. Every wrong reminder in the evaluation is a married name from a new account, or a typo in the new bank format; the reports list each one with the line that paid it.
+
+**A credit note after payment is a refund, not an error.** If a hospital-stay credit arrives after the family already paid, the share is over-paid. The balance check reports it as `refund_due_cents` instead of failing every later run. Only allocation beyond the invoice's gross amount is an error.
 
 **Money must balance or the run fails.** After every weekly run: credits = allocated + suspense + non-AR income, no bank line is over-allocated, and no invoice share is over-allocated. This check caught three real bugs:
 1. Review picks were applied before the week's automatic posts.
@@ -83,22 +91,32 @@ The price is measured and reported: reminders for invoices that really were unpa
 **The LLM is used only at onboarding, never in the per-payment path.**
 - Matching thousands of bank lines a week must be deterministic, cheap and explainable.
 - Proposing a mapping for an unfamiliar export happens once per client, gets human confirmation, and is exactly where language understanding helps.
-- The model sees column *profiles* with person names masked (`<A>`), never rows. This is health-adjacent data (GDPR, HDS hosting in France).
+- The model sees column *profiles*: types, counts and a few sample values. In those samples any word of 4+ letters that is not accounting vocabulary is masked as `<A>`, including category values and letters inside codes. A test checks that no resident or private payer name from the three clients appears in what would be sent. This is health-adjacent data (GDPR, HDS hosting in France).
+- The model's proposal is never trusted as such: it may only name files that were discovered, columns that exist in them, and values from the entity model, and the human confirms the final template with every disagreement against the deterministic mapper flagged.
 - Calls go through one wrapper:
   - structured output (`messages.parse` with a pydantic schema);
-  - no `temperature` (current models reject it), with reproducibility from a record/replay cache committed to `llm_cache/`;
+  - reproducibility from a record/replay cache in `llm_cache/` (no sampling parameters are set; replay, not temperature, is what makes reruns identical);
   - every call logged with tokens, latency and cost;
   - any failure (no key, refusal, truncation, API error) falls back to the deterministic mapper.
 - Prompt caching is not used: these prompts are below the cacheable-prefix minimum.
 
-**The LLM half of the mapping eval has not been run.** No API key was available while building. The harness is there; one run with a key costs well under $1 and is then replayed from cache.
+**The LLM half of the mapping eval has not been run.** No API key was available while building. The harness is there, and its validation is tested with fabricated proposals. One run with a key fills the replay cache; the cost has not been measured.
 
 ## Model vs rules
 
-**Rules ship by default; the model is the upgrade where history allows.** Once the format guard is in place, both scorers measure 100% precision on all three clients' test months (95% lower bounds 99.2–99.8%).
-- **Automation:** the model is slightly higher (Azur 77.6% vs 76.2%; Maple 60.9% vs 59.3%; Client 3 58.3% vs 53.9%).
-- **Review suggestions:** on Azur the model's top suggestion is right far more often (95.6% vs 91.6%), which is less clerk time per reviewed line.
-- **Where the model is weaker:** on the two smaller UK-style clients its review suggestions are worse (Maple 78.4% vs 80.8%, Client 3 74.4% vs 81.0%), and on Client 3 it produced 11 wrong reminders against 2 for rules.
+**Rules ship by default. The model is the upgrade where the history is large enough to certify it.**
+
+| Test months 10–12 | Azur rules | Azur model | Maple rules | Maple model | Client 3 rules | Client 3 model |
+|---|---|---|---|---|---|---|
+| Auto-posts (wrong) | 1473 (0) | 1500 (0) | 453 (0) | none: did not certify | 393 (0) | none: did not certify |
+| Automation, all lines / excluding direct debits | 76.2% / 5.3% | 77.6% / 10.9% | 59.3% / 6.2% | 0% | 53.8% / 0.3% | 0% |
+| Review queue: top suggestion right | 69.1% | 90.8% | 59.0% | (85.4%, queue includes every DD) | 63.6% | (84.5%, same) |
+| Review lines per week | 30.7 | 27.2 | 20.9 | 50.6 | 22.9 | 47.4 |
+| Reminder drafts / wrong | 255 / 1 | 170 / 0 | 151 / 2 | 29 / 3 | 136 / 2 | 29 / 17 |
+
+- **On Azur** (600 residents, 1,285 shadow-run lines) the model certifies, auto-posts a little more, and its first suggestion in review is right 90.8% of the time against 69.1% for rules. That is the real gain: less clerk time per reviewed line.
+- **On Maple and Client 3** (300 residents, about 480 shadow-run lines) the model's best cut reached 295/295 and 292/292 correct, i.e. a lower bound of 98.99% and 98.98%: just short of 99%. So it auto-posts nothing, and the whole quarter goes to review. In an earlier run Maple's model certified on 310 lines. After the fixes in the [review log](review-log.md), a statement-backed transfer that is correct with teacher-forced history went wrong in the live shadow run, and the certification went with it. The likely cause, not proven, is that ambiguous returned direct debits now reopen their invoice, which changes what the subset search sees. That fragility is the honest result: about 480 lines is at the edge of what can certify 99%.
+- **The model drafts far fewer reminders** (29 against 151 on Maple), so its wrong-reminder count is not comparable, and on Client 3 it still drafted 17 wrong ones against 2.
 
 The rules scorer's reasons are readable by a clerk and it needs no labels to start. So: rules on day one, and the model switched on per client once its shadow run certifies and beats rules on review effort.
 
