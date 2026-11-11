@@ -13,11 +13,12 @@ import io
 import json
 import random
 import unicodedata
+from collections.abc import Sequence
 from pathlib import Path
 
 import yaml
 
-from reconcile.dates import week_ends
+from reconcile.dates import month_end, week_ends
 from reconcile.generate.world import World
 from reconcile.ids import bank_line_hash
 
@@ -85,7 +86,7 @@ def logical_tables(world: World, rng: random.Random) -> dict[str, list[dict]]:
                 "resident_name": f"{r.first} {r.last}",
                 "facility": r.facility["name"],
                 "period": month,
-                "period_end": _month_end(month),
+                "period_end": month_end(month),
                 "doc_type": inv.doc_type,
                 "amount": inv.cents,
                 "original_invoice": inv.original,
@@ -148,11 +149,6 @@ def logical_tables(world: World, rng: random.Random) -> dict[str, list[dict]]:
     return {"invoices": inv_rows, "payers": pay_rows, "remittances": rem_rows, "bank": bank_rows}
 
 
-def _month_end(d: dt.date) -> dt.date:
-    nxt = dt.date(d.year + d.month // 12, d.month % 12 + 1, 1)
-    return nxt - dt.timedelta(days=1)
-
-
 # ---------------- writing ----------------
 
 
@@ -188,9 +184,9 @@ def write_table(
     rows: list[dict],
     spec: dict,
     path: Path,
-    junk: str | None = None,
-    rng=None,
-    preamble=(),
+    junk: str | None,
+    rng: random.Random,
+    preamble: Sequence[str] = (),
     footer: str | None = None,
 ) -> None:
     cols = spec["columns"]
@@ -220,7 +216,7 @@ def write_client(
     out: Path,
     junk: str | None = None,
     seed: int = 0,
-    export_overlap_days: int = 16,
+    export_window_days: int = 16,
 ) -> dict:
     """Write all files for one client; returns summary counts."""
     rng = random.Random(seed)
@@ -231,10 +227,10 @@ def write_client(
         write_table(tables[kind], spec, out / spec["file"], junk, rng)
     spec = layout["bank"]
     bank = tables["bank"]
-    first, last = world.months[0], _month_end(world.months[-1])
+    first, last = world.months[0], month_end(world.months[-1])
     n_files = 0
     for we in week_ends(first, last):
-        lo = we - dt.timedelta(days=export_overlap_days)
+        lo = we - dt.timedelta(days=export_window_days)
         rows = [r for r in bank if lo <= r["date"] <= we]
         if not rows:
             continue

@@ -22,7 +22,8 @@ from reconcile.alloc_rules import (
     payer_identity,
     split_shares,
 )
-from reconcile.normalize import norm_text, payer_key
+from reconcile.dates import month_end
+from reconcile.normalize import payer_key
 
 _NAMES = yaml.safe_load(Path(__file__).with_name("names.yaml").read_text(encoding="utf-8"))
 MONTH_WORDS = {
@@ -139,10 +140,6 @@ class World:
 def _ascii_upper(s: str) -> str:
     s = "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c))
     return " ".join(s.upper().replace("'", " ").split())
-
-
-def _month_end(d: dt.date) -> dt.date:
-    return d.replace(day=calendar.monthrange(d.year, d.month)[1])
 
 
 def _add_months(d: dt.date, k: int) -> dt.date:
@@ -325,7 +322,7 @@ class _Gen:
     def build_invoices(self) -> None:
         daily_extra = self.cfg["extra_daily_rate"]
         for mi, month in enumerate(self.months):
-            mend = _month_end(month)
+            mend = month_end(month)
             period = f"{month.year}-{month.month:02d}"
             prev = _add_months(month, -1)
             for r in self.residents:
@@ -395,7 +392,7 @@ class _Gen:
         for s in self.shares:
             inv, r, p = s.invoice, s.invoice.resident, s.payer
             month = self.months[s.month_index]
-            final = r.exit is not None and r.exit <= _month_end(month)
+            final = r.exit is not None and r.exit <= month_end(month)
             if p.method == "dd":
                 d = month.replace(day=self.cfg["dd_day"]) + dt.timedelta(
                     days=self.rng.randint(0, 2)
@@ -587,7 +584,7 @@ class _Gen:
                     name=self.rng.choice(self.text["unknown_payers"]),
                 )
             for _ in range(self.rates["refunds_per_month"]):
-                first, last, g = self._person()
+                first, last, _gender = self._person()
                 self._intent(
                     kind="refund",
                     date=self._day(month, 1, 28),
@@ -772,7 +769,3 @@ def build_world(cfg: dict, noise: float = 1.0) -> World:
     g.build_intents()
     g.resolve()
     return World(cfg, g.residents, g.invoices, g.shares, g.lines, g.remittances, g.months)
-
-
-def norm_payer(name: str) -> str:
-    return norm_text(name)
