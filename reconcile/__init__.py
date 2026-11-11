@@ -1,1 +1,1 @@
-"""Reconcile: payment-to-invoice matching for care-home groups."""
+"""Reconcile: bank-to-invoice matching (lettrage) and safe dunning for care-home groups."""
