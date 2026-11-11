@@ -11,6 +11,7 @@ import random
 
 from reconcile.audit import AuditLog
 from reconcile.ledger import Ledger
+from reconcile.normalize import label_signature
 
 
 def apply_decision(
@@ -52,6 +53,9 @@ def apply_decision(
                 "date": L.lines[bank_hash]["date"],
             }
         )
+    sig = label_signature(L.lines[bank_hash]["label"])
+    L.sig_review[sig][0] += 1
+    L.sig_review[sig][1] += int(action == "accept")
     if picked is not None:
         edges = [tuple(e) for e in picked["edges"]]
         L.post(

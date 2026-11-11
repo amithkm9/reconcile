@@ -2,36 +2,36 @@
   "test_lines": 744,
   "test_ar_lines": 731,
   "test_weeks": 14,
-  "auto_lines": 432,
-  "auto_correct": 430,
-  "auto_precision": 0.9954,
-  "auto_precision_lb95": 0.9855,
-  "edge_precision": 0.9956,
-  "amount_weighted_precision": 0.9993,
-  "automation_rate": 0.591,
-  "automation_rate_eur": 0.657,
-  "suggestion_recall": 0.7948,
-  "review_lines": 272,
-  "review_per_week": 19.4,
-  "candidate_recall_all_months": 0.9598,
+  "auto_lines": 394,
+  "auto_correct": 394,
+  "auto_precision": 1.0,
+  "auto_precision_lb95": 0.9924,
+  "edge_precision": 1.0,
+  "amount_weighted_precision": 1.0,
+  "automation_rate": 0.539,
+  "automation_rate_eur": 0.4491,
+  "suggestion_recall": 0.8098,
+  "review_lines": 317,
+  "review_per_week": 22.6,
+  "candidate_recall_all_months": 0.9568,
   "candidate_recall_by_type": {
-    "bulk_no_remit": 1.0,
-    "bulk_remit": 0.9868,
+    "bulk_no_remit": 0.9375,
+    "bulk_remit": 0.9803,
     "dd": 1.0,
     "dd_return": 0.0,
-    "multi_month": 0.8799,
-    "one_to_one": 0.9186,
+    "multi_month": 0.8975,
+    "one_to_one": 0.9017,
     "overpay": 0.9375,
-    "partial": 0.9617,
-    "split_share": 0.9387
+    "partial": 0.9508,
+    "split_share": 0.9248
   },
   "confusion": {
-    "ar->auto": 432,
-    "ar->review": 270,
-    "ar->unapplied": 29,
+    "ar->auto": 394,
+    "ar->review": 314,
+    "ar->unapplied": 23,
     "non_ar->non_ar": 6,
-    "unapplied->review": 2,
-    "unapplied->unapplied": 5
+    "unapplied->review": 3,
+    "unapplied->unapplied": 4
   },
   "by_match_type": {
     "bulk_no_remit": {
@@ -42,13 +42,13 @@
     },
     "bulk_remit": {
       "n": 37,
-      "automation": 0.7027,
+      "automation": 0.027,
       "auto_precision": 1.0,
-      "suggestion_recall": 0.973
+      "suggestion_recall": 0.9459
     },
     "dd": {
       "n": 396,
-      "automation": 1.0,
+      "automation": 0.9924,
       "auto_precision": 1.0,
       "suggestion_recall": 1.0
     },
@@ -62,39 +62,39 @@
       "n": 99,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.2525
+      "suggestion_recall": 0.303
     },
     "one_to_one": {
       "n": 71,
-      "automation": 0.0282,
-      "auto_precision": 1.0,
+      "automation": 0.0,
+      "auto_precision": null,
       "suggestion_recall": 0.6901
     },
     "overpay": {
       "n": 5,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.2
+      "suggestion_recall": 0.4
     },
     "partial": {
       "n": 41,
-      "automation": 0.0244,
-      "auto_precision": 1.0,
-      "suggestion_recall": 0.5122
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.5854
     },
     "split_share": {
       "n": 70,
-      "automation": 0.1,
-      "auto_precision": 0.7143,
+      "automation": 0.0,
+      "auto_precision": null,
       "suggestion_recall": 0.8143
     }
   },
   "by_shift": {
     "label_format": {
       "n": 266,
-      "automation": 0.0376,
-      "auto_precision": 0.8,
-      "suggestion_recall": 0.5714
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.6053
     },
     "married_name": {
       "n": 20,
@@ -104,97 +104,51 @@
     },
     "none": {
       "n": 431,
-      "automation": 0.9606,
+      "automation": 0.9142,
       "auto_precision": 1.0,
-      "suggestion_recall": 0.9768
+      "suggestion_recall": 0.9745
     },
     "remit_layout": {
       "n": 14,
-      "automation": 0.5714,
-      "auto_precision": 1.0,
+      "automation": 0.0,
+      "auto_precision": null,
       "suggestion_recall": 1.0
     }
   },
-  "reminders_drafted": 101,
+  "reminders_drafted": 112,
   "reminders_held": {
     "dd_return": 1,
     "deceased": 12,
-    "unapplied_cash": 324
+    "unapplied_cash": 323
   },
-  "reminders_delayed_by_holds": 291,
-  "wrong_reminders": 4,
+  "reminders_delayed_by_holds": 289,
+  "wrong_reminders": 2,
   "wrong_reminder_examples": [
     "INV-02695",
-    "INV-02748",
-    "INV-02960",
-    "INV-02748"
+    "INV-02960"
   ],
   "missed_reminders": 2,
   "balance_ok_all_runs": true,
-  "greedy_components_checked": 146,
-  "greedy_suboptimal": 6,
+  "greedy_components_checked": 138,
+  "greedy_suboptimal": 3,
+  "auto_blocked_by_new_format_guard": 17,
   "stranded_lines": 0,
-  "errors": [
-    {
-      "date": "2025-10-04",
-      "label": "FP R JACKSON INV-0",
-      "reference": "",
-      "amount": 1173.04,
-      "truth_type": "split_share",
-      "shift": "label_format",
-      "predicted": [
-        [
-          "INV-02134",
-          3784
-        ],
-        [
-          "INV-02442",
-          113520
-        ]
-      ],
-      "truth": [
-        [
-          "INV-02748",
-          117304
-        ]
-      ]
-    },
-    {
-      "date": "2025-10-28",
-      "label": "FP J EVANS INV-032",
-      "reference": "",
-      "amount": 980.4,
-      "truth_type": "split_share",
-      "shift": "label_format",
-      "predicted": [
-        [
-          "INV-02606",
-          98040
-        ]
-      ],
-      "truth": [
-        [
-          "INV-03209",
-          98040
-        ]
-      ]
-    }
-  ],
+  "errors": [],
   "client": "client3",
   "scorer": "rules",
   "thresholds": {
-    "auto": 0.9945137011005495,
+    "auto": 0.9966651926925867,
     "review": 0.2689414213699951,
-    "certified_lb": 0.991207836381778,
-    "n_at_auto": 1344,
-    "k_at_auto": 1338,
+    "certified_lb": 0.9915879636010939,
+    "n_at_auto": 1247,
+    "k_at_auto": 1242,
     "target": 0.99
   },
-  "n_train_rows": 19631,
-  "n_threshold_rows": 8341,
+  "n_train_rows": 20448,
+  "n_threshold_rows": 8769,
   "threshold_set": {
-    "lines": 2198,
-    "correct_chosen": 1906,
-    "months": "1-9"
+    "lines": 2196,
+    "correct_chosen": 1900,
+    "months": "1-9 (historical lettrage)"
   }
 }

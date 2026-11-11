@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from reconcile.alloc_rules import SETTLE_TOLERANCE_CENTS, payer_identity, split_shares
 from reconcile.mapping.template import ClientData
-from reconcile.normalize import name_part, norm_name, payer_key
+from reconcile.normalize import label_signature, name_part, norm_name, payer_key
 
 PUBLIC_TYPES = {"public_aid", "guardian", "health_funder"}
 
@@ -55,6 +55,8 @@ def build_shares(data: ClientData) -> list[Share]:
         for p, cents in zip(plist, split_shares(net, items), strict=True):
             pk = payer_key(p["payer_name"])
             pid = payer_identity(pk, p["payer_type"], r["resident_id"])
+            while any(x.key == f"{r['invoice_id']}|{pid}" for x in shares[-len(plist):]):
+                pid += "#2"  # a resident and a namesake relative both paying: keep two shares
             shares.append(
                 Share(
                     f"{r['invoice_id']}|{pid}",
@@ -97,6 +99,8 @@ class Ledger:
         self.reminders: list[dict] = []
         self.runs: list[dict] = []
         self.aliases: dict[str, set[str]] = defaultdict(set)
+        self.signature_counts: dict[str, int] = defaultdict(int)  # label layouts lettered in history
+        self.sig_review: dict[str, list[int]] = defaultdict(lambda: [0, 0])  # [reviewed, top accepted]
         self.pid_history: dict[str, list[tuple[dt.date, int]]] = defaultdict(list)
 
     # ---- queries ----
@@ -162,6 +166,8 @@ class Ledger:
                     "date": line["date"],
                 }
             )
+        if source in ("historical", "auto"):  # layouts trusted through history, not via review
+            self.signature_counts[label_signature(line["label"])] += 1
         pids = {self.shares[k].pid for k, c in edges if c > 0}
         for pid in pids:
             self.pid_history[pid].append((line["date"], line["amount_cents"]))

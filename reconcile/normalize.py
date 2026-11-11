@@ -84,6 +84,27 @@ def period_tokens(text: str) -> set[str]:
     return out
 
 
+def label_signature(label: str) -> str:
+    """The *layout* of a bank label with the content removed: 'VIR SEPA MME LEROY SOPHIE' ->
+    'VIR SEPA <A>'; 'VIREMENT RECU /DE M VIDAL LUC' -> 'VIREMENT RECU /DE'. A new signature means
+    the bank (or payment scheme) changed its format."""
+    voc = vocab()
+    keep = set(voc["stopwords"]) | set(voc["return_keywords"]) | set(voc["non_ar_keywords"])
+    out: list[str] = []
+    for tok in str(label or "").upper().split():
+        if any(c.isdigit() for c in tok):
+            t = "9"
+        elif tok.startswith("/") or strip_accents(tok) in keep:
+            t = tok
+        elif strip_accents(tok) in _month_lookup():
+            t = "<M>"
+        else:
+            t = "<A>"
+        if not (out and out[-1] == t and t in ("<A>", "9")):
+            out.append(t)
+    return " ".join(out[:3])
+
+
 def has_keyword(text: str, keywords: list[str]) -> bool:
     toks = set(tokens(text))
     return any(k in toks for k in keywords)

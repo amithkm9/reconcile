@@ -293,7 +293,7 @@ def discover(data_dir: Path) -> list[dict]:
         key = re.sub(r"\d+", "#", str(rel))
         groups.setdefault(key, []).append(f)
     out = []
-    for key, fs in groups.items():
+    for fs in groups.values():
         rel = fs[0].relative_to(data_dir)
         if len(fs) > 1:
             parts = re.split(r"\d", str(rel), maxsplit=1)

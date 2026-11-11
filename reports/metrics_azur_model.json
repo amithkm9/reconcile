@@ -1,0 +1,162 @@
+{
+  "test_lines": 1981,
+  "test_ar_lines": 1933,
+  "test_weeks": 14,
+  "auto_lines": 1500,
+  "auto_correct": 1500,
+  "auto_precision": 1.0,
+  "auto_precision_lb95": 0.998,
+  "edge_precision": 1.0,
+  "amount_weighted_precision": 1.0,
+  "automation_rate": 0.776,
+  "automation_rate_eur": 0.765,
+  "suggestion_recall": 0.9555,
+  "review_lines": 383,
+  "review_per_week": 27.4,
+  "candidate_recall_all_months": 0.9934,
+  "candidate_recall_by_type": {
+    "bulk_no_remit": 0.9706,
+    "bulk_remit": 1.0,
+    "dd": 1.0,
+    "dd_return": 0.9895,
+    "guardian_bulk": 0.9444,
+    "multi_month": 0.8892,
+    "one_to_one": 0.9984,
+    "overpay": 0.9792,
+    "partial": 0.9925,
+    "split_share": 1.0
+  },
+  "confusion": {
+    "ar->auto": 1500,
+    "ar->review": 383,
+    "ar->unapplied": 50,
+    "non_ar->non_ar": 36,
+    "unapplied->unapplied": 12
+  },
+  "by_match_type": {
+    "bulk_no_remit": {
+      "n": 4,
+      "automation": 1.0,
+      "auto_precision": 1.0,
+      "suggestion_recall": 1.0
+    },
+    "bulk_remit": {
+      "n": 46,
+      "automation": 0.9783,
+      "auto_precision": 1.0,
+      "suggestion_recall": 1.0
+    },
+    "dd": {
+      "n": 1425,
+      "automation": 1.0,
+      "auto_precision": 1.0,
+      "suggestion_recall": 1.0
+    },
+    "dd_return": {
+      "n": 22,
+      "automation": 1.0,
+      "auto_precision": 1.0,
+      "suggestion_recall": 1.0
+    },
+    "guardian_bulk": {
+      "n": 9,
+      "automation": 0.4444,
+      "auto_precision": 1.0,
+      "suggestion_recall": 0.5556
+    },
+    "multi_month": {
+      "n": 154,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.7857
+    },
+    "one_to_one": {
+      "n": 133,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.985
+    },
+    "overpay": {
+      "n": 10,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.9
+    },
+    "partial": {
+      "n": 62,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.8548
+    },
+    "split_share": {
+      "n": 68,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.9412
+    }
+  },
+  "by_shift": {
+    "label_format": {
+      "n": 420,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.8952
+    },
+    "married_name": {
+      "n": 7,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.2857
+    },
+    "none": {
+      "n": 1489,
+      "automation": 0.996,
+      "auto_precision": 1.0,
+      "suggestion_recall": 0.9973
+    },
+    "remit_layout": {
+      "n": 17,
+      "automation": 1.0,
+      "auto_precision": 1.0,
+      "suggestion_recall": 1.0
+    }
+  },
+  "reminders_drafted": 170,
+  "reminders_held": {
+    "dd_return": 22,
+    "deceased": 48,
+    "pending_review": 33,
+    "unapplied_cash": 464
+  },
+  "reminders_delayed_by_holds": 372,
+  "wrong_reminders": 0,
+  "wrong_reminder_examples": [],
+  "missed_reminders": 0,
+  "balance_ok_all_runs": true,
+  "greedy_components_checked": 108,
+  "greedy_suboptimal": 1,
+  "auto_blocked_by_new_format_guard": 304,
+  "stranded_lines": 0,
+  "errors": [],
+  "client": "azur",
+  "scorer": "model",
+  "thresholds": {
+    "auto": 0.8649847988747787,
+    "review": 0.6664406375326485,
+    "certified_lb": 0.9902845714719034,
+    "n_at_auto": 1216,
+    "k_at_auto": 1210,
+    "target": 0.99
+  },
+  "n_train_rows": 11954,
+  "n_threshold_rows": 4204,
+  "threshold_set": {
+    "lines": 1286,
+    "correct_chosen": 1270,
+    "months": "8-9 (shadow run)"
+  },
+  "calibration_test": {
+    "brier": 0.0245,
+    "bins": 10
+  }
+}

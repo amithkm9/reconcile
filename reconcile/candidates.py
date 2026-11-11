@@ -380,17 +380,20 @@ class Matcher:
 
     # ---- 5. names ----
     def _names(self, line, text, amount, d) -> tuple[list[Cand], set[str]]:
-        npart = name_part(line["label"], line.get("reference") or "")
+        # the debtor name is in the label; reference words ("LOYER MAMAN") only dilute the match
+        npart = name_part(line["label"]) or name_part(line["label"], line.get("reference") or "")
         pid_score: dict[str, float] = {}
         alias_hit: set[str] = set()
         if npart:
-            for choice, score, idx in process.extract(
-                npart,
-                self.name_choices,
-                scorer=fuzz.token_set_ratio,
-                limit=8,
-                score_cutoff=NAME_CUTOFF,
-            ):
+            found: dict[int, str] = {}
+            for fn in (fuzz.token_sort_ratio, fuzz.token_set_ratio):
+                for choice, _, idx in process.extract(npart, self.name_choices, scorer=fn, limit=10,
+                                                      score_cutoff=NAME_CUTOFF):
+                    found[idx] = choice
+            for idx, choice in sorted(found.items()):
+                score = name_similarity(npart, choice)
+                if score < NAME_CUTOFF:
+                    continue
                 for pid in sorted(self.name_pids[idx]):
                     pid_score[pid] = max(pid_score.get(pid, 0), score)
                     if choice in self.alias_set:
@@ -400,6 +403,7 @@ class Matcher:
             for pid in sorted(self.surname_pids.get(t, ())):
                 res_hit.add(pid)
                 pid_score.setdefault(pid, 0.0)
+        all_pids = set(pid_score)  # every plausible payer, kept for the reminder holds
         if len(pid_score) > 12:  # too generic a name (e.g. a common surname): keep the best
             pid_score = dict(sorted(pid_score.items(), key=lambda kv: (-kv[1], kv[0]))[:12])
         months = month_tokens(text)
@@ -429,7 +433,16 @@ class Matcher:
                         line["bank_hash"], "name_single", ((s.key, take),), amount - take, dict(sig)
                     )
                 )
-        return out, set(pid_score)
+        return out, all_pids
+
+
+def name_similarity(a: str, b: str) -> float:
+    """Name match that tolerates word order and extra words, but not a single shared first name:
+    'B PATEL' ~ 'BARBARA PATEL' (85), 'RICAHRD CLAIRE' ~ 'CLAIRE RICHARD' (86), while
+    'RICAHRD CLAIRE' vs 'CLAIRE COLIN' stays low (a lone shared word costs 15 points)."""
+    shared = set(a.split()) & set(b.split())
+    tset = fuzz.token_set_ratio(a, b) - (15 if len(shared) <= 1 else 0)
+    return max(fuzz.token_sort_ratio(a, b), tset)
 
 
 def _prio(c: Cand) -> int:

@@ -1,39 +1,37 @@
 {
   "test_lines": 1981,
-  "test_ar_lines": 1928,
+  "test_ar_lines": 1933,
   "test_weeks": 14,
-  "auto_lines": 1542,
-  "auto_correct": 1536,
-  "auto_precision": 0.9961,
-  "auto_precision_lb95": 0.9923,
-  "edge_precision": 0.9958,
-  "amount_weighted_precision": 0.9978,
-  "automation_rate": 0.7993,
-  "automation_rate_eur": 0.7231,
-  "suggestion_recall": 0.9134,
-  "review_lines": 353,
-  "review_per_week": 25.2,
-  "candidate_recall_all_months": 0.9917,
+  "auto_lines": 1473,
+  "auto_correct": 1473,
+  "auto_precision": 1.0,
+  "auto_precision_lb95": 0.998,
+  "edge_precision": 1.0,
+  "amount_weighted_precision": 1.0,
+  "automation_rate": 0.762,
+  "automation_rate_eur": 0.6897,
+  "suggestion_recall": 0.9157,
+  "review_lines": 430,
+  "review_per_week": 30.7,
+  "candidate_recall_all_months": 0.9951,
   "candidate_recall_by_type": {
     "bulk_no_remit": 0.9706,
     "bulk_remit": 1.0,
-    "dd": 0.9991,
-    "dd_return": 0.9789,
+    "dd": 1.0,
+    "dd_return": 0.9895,
     "guardian_bulk": 0.9167,
-    "multi_month": 0.9086,
-    "one_to_one": 0.9871,
-    "overpay": 0.9583,
-    "partial": 0.9735,
-    "split_share": 0.9968
+    "multi_month": 0.9304,
+    "one_to_one": 0.9984,
+    "overpay": 0.9375,
+    "partial": 0.9925,
+    "split_share": 1.0
   },
   "confusion": {
-    "ar->auto": 1541,
-    "ar->review": 351,
-    "ar->unapplied": 36,
+    "ar->auto": 1473,
+    "ar->review": 430,
+    "ar->unapplied": 30,
     "non_ar->non_ar": 36,
-    "unapplied->auto": 1,
-    "unapplied->review": 2,
-    "unapplied->unapplied": 14
+    "unapplied->unapplied": 12
   },
   "by_match_type": {
     "bulk_no_remit": {
@@ -50,9 +48,9 @@
     },
     "dd": {
       "n": 1425,
-      "automation": 0.9958,
+      "automation": 1.0,
       "auto_precision": 1.0,
-      "suggestion_recall": 0.9972
+      "suggestion_recall": 1.0
     },
     "dd_return": {
       "n": 22,
@@ -67,42 +65,42 @@
       "suggestion_recall": 0.4444
     },
     "multi_month": {
-      "n": 151,
-      "automation": 0.0927,
-      "auto_precision": 0.7143,
-      "suggestion_recall": 0.3576
+      "n": 154,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.3701
     },
     "one_to_one": {
       "n": 133,
-      "automation": 0.2782,
-      "auto_precision": 1.0,
-      "suggestion_recall": 0.9098
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.9173
     },
     "overpay": {
       "n": 10,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.8
+      "suggestion_recall": 0.7
     },
     "partial": {
-      "n": 63,
-      "automation": 0.0794,
-      "auto_precision": 0.8,
-      "suggestion_recall": 0.619
+      "n": 62,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.6613
     },
     "split_share": {
-      "n": 65,
-      "automation": 0.2769,
-      "auto_precision": 1.0,
-      "suggestion_recall": 0.8615
+      "n": 68,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.8676
     }
   },
   "by_shift": {
     "label_format": {
-      "n": 415,
-      "automation": 0.1783,
-      "auto_precision": 0.9324,
-      "suggestion_recall": 0.6675
+      "n": 420,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.6786
     },
     "married_name": {
       "n": 7,
@@ -112,9 +110,9 @@
     },
     "none": {
       "n": 1489,
-      "automation": 0.9799,
+      "automation": 0.9839,
       "auto_precision": 1.0,
-      "suggestion_recall": 0.994
+      "suggestion_recall": 0.9966
     },
     "remit_layout": {
       "n": 17,
@@ -123,177 +121,40 @@
       "suggestion_recall": 1.0
     }
   },
-  "reminders_drafted": 294,
+  "reminders_drafted": 253,
   "reminders_held": {
     "dd_return": 22,
-    "deceased": 47,
-    "pending_review": 32,
-    "unapplied_cash": 420
+    "deceased": 49,
+    "pending_review": 28,
+    "unapplied_cash": 434
   },
-  "reminders_delayed_by_holds": 309,
-  "wrong_reminders": 3,
+  "reminders_delayed_by_holds": 329,
+  "wrong_reminders": 1,
   "wrong_reminder_examples": [
-    "FA2025-003531",
-    "FA2025-003531",
-    "FA2025-004333"
+    "FA2025-004999"
   ],
   "missed_reminders": 0,
   "balance_ok_all_runs": true,
-  "greedy_components_checked": 183,
-  "greedy_suboptimal": 2,
+  "greedy_components_checked": 188,
+  "greedy_suboptimal": 1,
+  "auto_blocked_by_new_format_guard": 77,
   "stranded_lines": 0,
-  "errors": [
-    {
-      "date": "2025-10-09",
-      "label": "VIREMENT RECU /DE MOREL GERMAINE",
-      "reference": "/MOTIF PENSION SEPT",
-      "amount": 942.0,
-      "truth_type": "multi_month",
-      "shift": "label_format",
-      "predicted": [
-        [
-          "FA2025-005186",
-          94200
-        ]
-      ],
-      "truth": [
-        [
-          "FA2025-005186",
-          27200
-        ],
-        [
-          "FA2025-005786",
-          67000
-        ]
-      ]
-    },
-    {
-      "date": "2025-11-13",
-      "label": "VIREMENT RECU /DE GARCIA ANDREE",
-      "reference": "/MOTIF LOYER OCT MAMAN",
-      "amount": 999.44,
-      "truth_type": "unapplied",
-      "shift": "label_format",
-      "predicted": [
-        [
-          "FA2025-005694",
-          3224
-        ],
-        [
-          "FA2025-006296",
-          96720
-        ]
-      ],
-      "truth": []
-    },
-    {
-      "date": "2025-12-07",
-      "label": "VIREMENT RECU /DE MOREL GERMAINE",
-      "reference": "/MOTIF PENSION DEC",
-      "amount": 973.4,
-      "truth_type": "multi_month",
-      "shift": "label_format",
-      "predicted": [
-        [
-          "FA2025-005786",
-          97340
-        ]
-      ],
-      "truth": [
-        [
-          "FA2025-006385",
-          30340
-        ],
-        [
-          "FA2025-006982",
-          67000
-        ]
-      ]
-    },
-    {
-      "date": "2025-12-08",
-      "label": "VIREMENT RECU /DE M DENIS LUCIEN",
-      "reference": "/MOTIF NOV FONTAINE",
-      "amount": 2319.0,
-      "truth_type": "multi_month",
-      "shift": "label_format",
-      "predicted": [
-        [
-          "FA2025-006535",
-          231900
-        ]
-      ],
-      "truth": [
-        [
-          "FA2025-006535",
-          125900
-        ],
-        [
-          "FA2025-007130",
-          106000
-        ]
-      ]
-    },
-    {
-      "date": "2025-12-08",
-      "label": "VIREMENT RECU /DE M VIDAL LUC",
-      "reference": "/MOTIF LOYER DEC MAMAN",
-      "amount": 958.0,
-      "truth_type": "multi_month",
-      "shift": "label_format",
-      "predicted": [
-        [
-          "FA2025-007037",
-          95800
-        ]
-      ],
-      "truth": [
-        [
-          "FA2025-006440",
-          92760
-        ],
-        [
-          "FA2025-007037",
-          3040
-        ]
-      ]
-    },
-    {
-      "date": "2025-12-11",
-      "label": "VIREMENT RECU /DE M VIDAL LUC",
-      "reference": "/MOTIF LOYER NOV MAMAN",
-      "amount": 927.6,
-      "truth_type": "partial",
-      "shift": "label_format",
-      "predicted": [
-        [
-          "FA2025-006440",
-          92760
-        ]
-      ],
-      "truth": [
-        [
-          "FA2025-007037",
-          92760
-        ]
-      ]
-    }
-  ],
+  "errors": [],
   "client": "azur",
   "scorer": "rules",
   "thresholds": {
     "auto": 0.995929862284104,
-    "review": 0.6224593312018546,
-    "certified_lb": 0.9950721420958658,
-    "n_at_auto": 4683,
-    "k_at_auto": 4668,
+    "review": 0.7310585786300049,
+    "certified_lb": 0.9956227701553078,
+    "n_at_auto": 4718,
+    "k_at_auto": 4705,
     "target": 0.99
   },
-  "n_train_rows": 11978,
-  "n_threshold_rows": 3894,
+  "n_train_rows": 11977,
+  "n_threshold_rows": 3917,
   "threshold_set": {
-    "lines": 5769,
-    "correct_chosen": 5473,
-    "months": "1-9"
+    "lines": 5773,
+    "correct_chosen": 5499,
+    "months": "1-9 (historical lettrage)"
   }
 }

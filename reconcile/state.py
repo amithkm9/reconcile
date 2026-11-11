@@ -27,6 +27,7 @@ from reconcile.candidates import Cand, Matcher
 from reconcile.decide import Thresholds, outcome
 from reconcile.features import candidate_features
 from reconcile.ledger import Ledger
+from reconcile.normalize import label_signature
 from reconcile.reminders import run_reminders
 from reconcile.review import SimReviewer, apply_decision
 
@@ -209,6 +210,13 @@ def _decide(L, pending, results, feats, th, run_id, as_of, reviewer, audit, stat
             "stranded": h in stranded,
             "top_edges": [list(e) for e in top.edges] if top and out == "review" else [],
         }
+        if out == "auto" and _new_format(L, line):
+            # never auto-post a label layout no human has confirmed yet: the bank changed its
+            # format and nothing the scorer learned is evidence about it
+            out = dec["outcome"] = dec["system_outcome"] = "review"
+            dec["final"], dec["guard"] = False, "new_format"
+            dec["top_edges"] = [list(e) for e in top.edges]
+            stats["guard_new_format"] += 1
         L.decisions[h] = dec
         stats[out] += 1
         if out == "auto":
@@ -238,6 +246,29 @@ def _decide(L, pending, results, feats, th, run_id, as_of, reviewer, audit, stat
         for dec in queue:
             action, idx = reviewer.act(dec)
             apply_decision(L, dec["bank_hash"], action, run_id, idx, actor="sim_reviewer", audit=audit)
+
+
+GUARD_MIN_HISTORY = 200   # the guard needs a history to compare against (not active at cold start)
+GUARD_MIN_CONFIRMED = 20  # confirmed lines of a layout before it may be auto-posted
+
+
+PROBATION_MIN_REVIEWED = 30   # a new layout is human-reviewed until at least this many lines...
+PROBATION_MIN_ACCEPT = 0.97   # ...have been reviewed AND the top suggestion was right this often
+
+
+def _new_format(L: Ledger, line: dict) -> bool:
+    """True if this line's label layout is not trusted for auto-posting yet.
+
+    Trusted = seen in the lettered history, or passed probation: reviewers handled enough lines
+    in that layout and accepted the system's top suggestion often enough. The guard lifts on
+    measured precision, not on a count."""
+    if sum(L.signature_counts.values()) < GUARD_MIN_HISTORY:
+        return False  # cold start: nothing to compare against
+    sig = label_signature(line["label"])
+    if L.signature_counts.get(sig, 0) >= GUARD_MIN_CONFIRMED:
+        return False
+    reviewed, accepted = L.sig_review.get(sig, (0, 0))
+    return not (reviewed >= PROBATION_MIN_REVIEWED and accepted / reviewed >= PROBATION_MIN_ACCEPT)
 
 
 def check_balance(L: Ledger) -> dict:
@@ -417,6 +448,8 @@ def load_state(L: Ledger, path: Path) -> dict:
             L.pid_history[L.shares[k].pid].append(
                 (dt.date.fromisoformat(d), L.lines[h]["amount_cents"])
             )
+    for h in {a["bank_hash"] for a in L.allocations}:
+        L.signature_counts[label_signature(L.lines[h]["label"])] += 1
     for (doc,) in con.execute("SELECT doc FROM decisions"):
         d = _undate(json.loads(doc))
         d["top"] = _restore_option(d.get("top"))
@@ -425,6 +458,8 @@ def load_state(L: Ledger, path: Path) -> dict:
     L.labels = [_undate(json.loads(doc)) for (doc,) in con.execute("SELECT doc FROM labels")]
     L.reminders = [_undate(json.loads(doc)) for (doc,) in con.execute("SELECT doc FROM reminders")]
     L.runs = [_undate(json.loads(doc)) for (doc,) in con.execute("SELECT doc FROM runs")]
+    for sig, counts in meta.get("sig_review", {}).items():
+        L.sig_review[sig] = list(counts)
     for a in meta.get("aliases", []):
         L.aliases[a[0]] |= set(a[1])
     con.close()

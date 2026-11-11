@@ -12,6 +12,7 @@ import pickle
 from pathlib import Path
 
 import numpy as np
+from threadpoolctl import threadpool_limits
 
 from reconcile.features import FEATURES
 
@@ -111,7 +112,8 @@ class GBMScorer:
             l2_regularization=1.0,
             random_state=seed,
         )
-        self.model.fit(self.matrix(feats), np.array(y))
+        with threadpool_limits(2):  # small batches: more threads only add OpenMP overhead
+            self.model.fit(self.matrix(feats), np.array(y))
         return self
 
     def calibrate(self, feats: list[dict], y: list[int]) -> None:
@@ -126,7 +128,8 @@ class GBMScorer:
     def score(self, feats: list[dict]) -> np.ndarray:
         if not feats:
             return np.array([])
-        return self.model.predict_proba(self.matrix(feats))[:, 1]
+        with threadpool_limits(2):
+            return self.model.predict_proba(self.matrix(feats))[:, 1]
 
     def display_probability(self, feats: list[dict]) -> np.ndarray:
         est = self.calibrator or self.model

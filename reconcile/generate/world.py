@@ -270,6 +270,8 @@ class _Gen:
             first, last, g = self._person()
             if self.rng.random() < self.text["same_surname_rate"]:
                 last = r.last
+            if (first, last) == (r.first, r.last):  # a daughter is not her mother's namesake
+                first = next(f for f in self.names[f"first_{g}"] if f != r.first)
             p = Payer(
                 f"{first} {last}",
                 ptype,

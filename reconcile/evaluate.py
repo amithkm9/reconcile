@@ -103,63 +103,77 @@ class EvalRun:
     metrics: dict
 
 
-def prepare_history(data: ClientData, truth: Truth):
-    """Teacher-forced pass over months 1-9: post historical lettrage, collect candidate rows."""
+def prepare_history(data: ClientData, truth: Truth, teacher_months: int = TRAIN_MONTHS + THRESHOLD_MONTHS):
+    """Teacher-forced pass: post the historical lettrage for the first `teacher_months` months and
+    collect the candidate rows generated against that point-in-time state."""
     months = [dt.date.fromisoformat(m) for m in truth.meta["months"]]
     test_start = months[TRAIN_MONTHS + THRESHOLD_MONTHS]
+    until = months[teacher_months]
     L = Ledger(data)
     M = Matcher(L, data.template)
     rows: list[dict] = []
-    for w in [w for w in week_ends(months[0], month_end(months[-1])) if w < test_start]:
-        run_week(
-            L,
-            M,
-            w,
-            scorer=None,
-            th=None,
-            run_id=f"hist-{w}",
-            mode="teacher",
-            truth=truth.as_run_truth(),
-            collect=rows,
-            do_reminders=False,
-        )
+    for w in [w for w in week_ends(months[0], month_end(months[-1])) if w < until]:
+        run_week(L, M, w, scorer=None, th=None, run_id=f"hist-{w}", mode="teacher",
+                 truth=truth.as_run_truth(), collect=rows, do_reminders=False)
     thr_start = months[TRAIN_MONTHS]
     train = [r for r in rows if r["date"] < thr_start]
     thr = [r for r in rows if thr_start <= r["date"] < test_start]
     return L, M, train, thr, months, test_start
 
 
-def fit_scorer(kind: str, train: list[dict], thr: list[dict], seed: int = 0):
+def fit_scorer(kind: str, train: list[dict], seed: int = 0):
     if kind == "rules":
         return RulesScorer()
-    sc = GBMScorer().fit([r["features"] for r in train], [r["y"] for r in train], seed=seed)
-    sc.calibrate([r["features"] for r in thr], [r["y"] for r in thr])
-    return sc
+    return GBMScorer().fit([r["features"] for r in train], [r["y"] for r in train], seed=seed)
 
 
-def evaluate_client(
-    client: str,
-    template: Path,
-    data_dir: Path,
-    scorer_kind: str = "rules",
-    reviewer_error: float = 0.0,
-    out_dir: Path | None = Path("reports"),
-    state_path: Path | None = None,
-    history=None,
-    keep_last_queue: bool = True,
-) -> EvalRun:
+def _shadow_thresholds(L: Ledger, M: Matcher, truth: Truth, scorer, months, test_start, reviewer, lang):
+    """Months 8-9 as a *shadow run*: the trained model decides week by week on live state (with
+    the review queue worked), and the auto threshold is chosen on what it actually decided.
+
+    Why: the model is trained on historical lettrage, where every earlier payment is perfectly
+    lettered. Live state is not (lines wait in review, some are rejected), so signals like "oldest
+    open invoice first" are less reliable than in training. Thresholding on the shadow run prices
+    that train/serve skew in; thresholding on teacher-forced rows hid it (98.2% on test for a
+    threshold that certified 99.0%).
+    """
+    from reconcile.decide import Thresholds as Th
+
+    provisional = Th(auto=float("inf"), review=0.3, certified_lb=0.0, n_at_auto=0, k_at_auto=0)
+    rows: list[dict] = []
+    for w in [w for w in week_ends(months[0], month_end(months[-1])) if months[TRAIN_MONTHS] <= w < test_start]:
+        run_week(L, M, w, scorer=scorer, th=provisional, run_id=f"shadow-{w}", mode="decide",
+                 truth=truth.as_run_truth(), reviewer=reviewer, lang=lang, collect=rows, do_reminders=False)
+    scores, correct = [], []
+    for h, d in L.decisions.items():
+        if d.get("run_id", "").startswith("shadow-") and d.get("top") and truth.month_index.get(h, -1) in (7, 8):
+            scores.append(d["top"]["score"])
+            correct.append(truth.cls[h] == "ar" and d["top"]["key"] == truth.keys[h])
+    th = choose_thresholds(np.array(scores), np.array(correct, dtype=bool))
+    scorer.calibrate([r["features"] for r in rows], [r["y"] for r in rows])
+    return th, rows, len(scores), int(sum(correct))
+
+
+def evaluate_client(client: str, template: Path, data_dir: Path, scorer_kind: str = "rules",
+                    reviewer_error: float = 0.0, out_dir: Path | None = Path("reports"),
+                    state_path: Path | None = None, keep_last_queue: bool = True) -> EvalRun:
+    """Rules: months 1-9 are historical lettrage and all nine are out-of-sample for an untrained
+    scorer, so its threshold uses them all. Model: months 1-7 historical lettrage for training,
+    months 8-9 a shadow run for the threshold (see _shadow_thresholds). Both report months 10-12."""
     data = load_client(template, data_dir)
     truth = load_truth(data_dir)
-    if history is None:
-        history = prepare_history(data, truth)
-    L, M, train, thr, months, test_start = history
-    scorer = fit_scorer(scorer_kind, train, thr)
-    # A fixed (untrained) scorer has never seen any history month, so all nine are out-of-sample
-    # for it; a trained model may only be thresholded on months it was not trained on (8-9).
-    sel = train + thr if scorer_kind == "rules" else thr
-    s_thr, c_thr, _ = chosen_per_line(sel, scorer.score([r["features"] for r in sel]))
-    th = choose_thresholds(s_thr, c_thr)
     reviewer = SimReviewer(truth.keys, reviewer_error)
+    if scorer_kind == "rules":
+        L, M, train, thr, months, test_start = prepare_history(data, truth)
+        scorer = fit_scorer("rules", train)
+        s_thr, c_thr, _ = chosen_per_line(train + thr, scorer.score([r["features"] for r in train + thr]))
+        th = choose_thresholds(s_thr, c_thr)
+        thr_info = {"lines": int(len(s_thr)), "correct_chosen": int(c_thr.sum()), "months": "1-9 (historical lettrage)"}
+    else:
+        L, M, train, _, months, test_start = prepare_history(data, truth, teacher_months=TRAIN_MONTHS)
+        scorer = fit_scorer("model", train)
+        th, thr, n, k = _shadow_thresholds(L, M, truth, scorer, months, test_start, reviewer, data.language)
+        thr_info = {"lines": n, "correct_chosen": k, "months": "8-9 (shadow run)"}
     audit = AuditLog(
         out_dir / f"audit_{client}.jsonl" if out_dir else None,
         {"template": data.template.get("version", 1), "scorer": scorer.name, "t_auto": th.auto},
@@ -191,9 +205,15 @@ def evaluate_client(
         "thresholds": th.as_dict(),
         "n_train_rows": len(train),
         "n_threshold_rows": len(thr),
-        "threshold_set": {"lines": int(len(s_thr)), "correct_chosen": int(c_thr.sum()),
-                          "months": "1-9" if scorer_kind == "rules" else "8-9"},
+        "threshold_set": thr_info,
     }
+    if isinstance(scorer, GBMScorer) and out_dir and test_rows:
+        from reconcile.experiments import reliability
+
+        probs = scorer.display_probability([r["features"] for r in test_rows])
+        metrics["calibration_test"] = reliability(probs, [r["y"] for r in test_rows],
+                                                  out_dir / f"reliability_{client}.png",
+                                                  f"{client}: calibrated model, test months")
     run = EvalRun(client, data, truth, L, scorer, th, train, thr, test_rows, weeks, metrics)
     if out_dir:
         write_report(run, out_dir)
@@ -206,6 +226,7 @@ def evaluate_client(
                 "scorer": scorer.name,
                 "thresholds": th.as_dict(),
                 "aliases": [[a, sorted(p)] for a, p in L.aliases.items()],
+                "sig_review": dict(L.sig_review),
             },
         )
         if isinstance(scorer, GBMScorer):
@@ -361,6 +382,7 @@ def compute_metrics(
         "balance_ok_all_runs": all(r["balance_ok"] for r in L.runs),
         "greedy_components_checked": sum(r.get("gap_checked", 0) for r in L.runs),
         "greedy_suboptimal": sum(r.get("gap_suboptimal", 0) for r in L.runs),
+        "auto_blocked_by_new_format_guard": sum(1 for h in test if L.decisions.get(h, {}).get("guard") == "new_format"),
         "stranded_lines": sum(1 for h in test if L.decisions.get(h, {}).get("stranded")),
         "errors": errors,
     }
@@ -412,6 +434,7 @@ def write_report(run: EvalRun, out_dir: Path) -> Path:
         f"| Missed reminders (overdue, unpaid, never drafted or held) | {m['missed_reminders']} |",
         f"| Reminder drafts / invoices held, by reason | {m['reminders_drafted']} / {m['reminders_held']} |",
         f"| Reminders delayed by a safety hold although the invoice was really unpaid | {m['reminders_delayed_by_holds']} |",
+        f"| Auto-posts held back by the new-label-format guard | {m['auto_blocked_by_new_format_guard']} |",
         f"| Money balances after every weekly run | {m['balance_ok_all_runs']} |",
         f"| Candidate recall (truth among candidates, all months) | {_pct(m['candidate_recall_all_months'])} |",
         "",
