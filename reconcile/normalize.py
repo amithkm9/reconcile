@@ -23,7 +23,7 @@ def vocab() -> dict:
 
 
 @lru_cache(maxsize=1)
-def _month_lookup() -> dict[str, int]:
+def month_lookup() -> dict[str, int]:
     return {w: int(m) for m, words in vocab()["months"].items() for w in words}
 
 
@@ -55,7 +55,7 @@ def norm_name(s: str | None) -> str:
 
 def name_part(label: str, ref: str = "") -> str:
     """The words of a bank line that could be a name: drop titles, noise words, months, numbers."""
-    drop = set(vocab()["titles"]) | set(vocab()["stopwords"]) | set(_month_lookup())
+    drop = set(vocab()["titles"]) | set(vocab()["stopwords"]) | set(month_lookup())
     words = [
         t for t in tokens(f"{label} {ref}") if t not in drop and not any(c.isdigit() for c in t)
     ]
@@ -67,8 +67,8 @@ def month_tokens(text: str) -> set[int]:
     found = set()
     for t in tokens(text):
         word = re.sub(r"\d{2}$", "", t) if re.fullmatch(r"[A-Z]+\d{2}", t) else t  # 'MAR25'
-        if word in _month_lookup():
-            found.add(_month_lookup()[word])
+        if word in month_lookup():
+            found.add(month_lookup()[word])
     for mm in re.findall(r"\b(0?[1-9]|1[0-2])[/-](?:20)?\d{2}\b", text or ""):
         found.add(int(mm))
     return found
@@ -96,7 +96,7 @@ def label_signature(label: str) -> str:
             t = "9"
         elif tok.startswith("/") or strip_accents(tok) in keep:
             t = tok
-        elif strip_accents(tok) in _month_lookup():
+        elif strip_accents(tok) in month_lookup():
             t = "<M>"
         else:
             t = "<A>"

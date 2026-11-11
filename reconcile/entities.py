@@ -1,8 +1,9 @@
 """The common entity model every client's exports are mapped into.
 
 The pipeline works on DataFrames for speed; these pydantic models are the contract for what a
-loaded frame must contain. `validate_frame` checks a loaded frame row by row against them, so a
-bad template fails at load time, not three steps later inside matching.
+loaded frame must contain. `load_client` validates a sample of every file against them field by
+field, and checks category values (payer type, document type) on every row, so a bad template
+fails at load time, not three steps later inside matching.
 """
 
 from __future__ import annotations
@@ -14,16 +15,6 @@ import pandas as pd
 from pydantic import BaseModel, ValidationError
 
 PayerType = Literal["resident", "family", "public_aid", "guardian", "health_funder", "other"]
-
-
-class Facility(BaseModel):
-    facility: str
-
-
-class Resident(BaseModel):
-    resident_id: str
-    resident_name: str
-    facility: str
 
 
 class Invoice(BaseModel):
