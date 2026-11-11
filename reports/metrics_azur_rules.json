@@ -11,6 +11,10 @@
   "automation_rate": 0.762,
   "automation_rate_eur": 0.6897,
   "suggestion_recall": 0.9157,
+  "review_top1_accuracy": 0.6907,
+  "non_dd_lines": 486,
+  "non_dd_automation_rate": 0.0535,
+  "dd_share_of_ar_lines": 0.7486,
   "review_lines": 430,
   "review_per_week": 30.7,
   "candidate_recall_all_months": 0.9951,
@@ -121,19 +125,30 @@
       "suggestion_recall": 1.0
     }
   },
-  "reminders_drafted": 253,
+  "reminders_drafted": 255,
   "reminders_held": {
-    "dd_return": 22,
+    "dd_return": 20,
     "deceased": 49,
     "pending_review": 28,
-    "unapplied_cash": 434
+    "unapplied_cash": 435
   },
-  "reminders_delayed_by_holds": 329,
+  "reminders_delayed_by_holds": 330,
   "wrong_reminders": 1,
   "wrong_reminder_examples": [
-    "FA2025-004999"
+    {
+      "invoice_id": "FA2025-004999",
+      "payer": "H\u00e9l\u00e8ne Vincent",
+      "as_of": "2025-11-02",
+      "paid_by_label": "VIREMENT RECU /DE MME FRANCOIS HELENE",
+      "paid_by_reference": "/MOTIF",
+      "paid_on": "2025-10-10",
+      "paid_by_type": "multi_month",
+      "shift": "married_name",
+      "system_outcome": "unapplied"
+    }
   ],
   "missed_reminders": 0,
+  "missed_reminder_examples": [],
   "balance_ok_all_runs": true,
   "greedy_components_checked": 188,
   "greedy_suboptimal": 1,
@@ -153,8 +168,8 @@
   "n_train_rows": 11977,
   "n_threshold_rows": 3917,
   "threshold_set": {
-    "lines": 5773,
-    "correct_chosen": 5499,
+    "lines": 5767,
+    "correct_chosen": 5498,
     "months": "1-9 (historical lettrage)"
   }
 }

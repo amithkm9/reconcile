@@ -2,36 +2,40 @@
   "test_lines": 744,
   "test_ar_lines": 731,
   "test_weeks": 14,
-  "auto_lines": 394,
-  "auto_correct": 394,
+  "auto_lines": 393,
+  "auto_correct": 393,
   "auto_precision": 1.0,
   "auto_precision_lb95": 0.9924,
   "edge_precision": 1.0,
   "amount_weighted_precision": 1.0,
-  "automation_rate": 0.539,
-  "automation_rate_eur": 0.4491,
-  "suggestion_recall": 0.8098,
-  "review_lines": 317,
-  "review_per_week": 22.6,
-  "candidate_recall_all_months": 0.9568,
+  "automation_rate": 0.5376,
+  "automation_rate_eur": 0.4483,
+  "suggestion_recall": 0.8153,
+  "review_top1_accuracy": 0.6364,
+  "non_dd_lines": 328,
+  "non_dd_automation_rate": 0.003,
+  "dd_share_of_ar_lines": 0.5513,
+  "review_lines": 321,
+  "review_per_week": 22.9,
+  "candidate_recall_all_months": 0.9659,
   "candidate_recall_by_type": {
     "bulk_no_remit": 0.9375,
     "bulk_remit": 0.9803,
     "dd": 1.0,
-    "dd_return": 0.0,
-    "multi_month": 0.8975,
-    "one_to_one": 0.9017,
+    "dd_return": 0.9643,
+    "multi_month": 0.8905,
+    "one_to_one": 0.9085,
     "overpay": 0.9375,
     "partial": 0.9508,
     "split_share": 0.9248
   },
   "confusion": {
-    "ar->auto": 394,
-    "ar->review": 314,
-    "ar->unapplied": 23,
+    "ar->auto": 393,
+    "ar->review": 319,
+    "ar->unapplied": 19,
     "non_ar->non_ar": 6,
-    "unapplied->review": 3,
-    "unapplied->unapplied": 4
+    "unapplied->review": 2,
+    "unapplied->unapplied": 5
   },
   "by_match_type": {
     "bulk_no_remit": {
@@ -44,11 +48,11 @@
       "n": 37,
       "automation": 0.027,
       "auto_precision": 1.0,
-      "suggestion_recall": 0.9459
+      "suggestion_recall": 0.973
     },
     "dd": {
       "n": 396,
-      "automation": 0.9924,
+      "automation": 0.9899,
       "auto_precision": 1.0,
       "suggestion_recall": 1.0
     },
@@ -56,19 +60,19 @@
       "n": 7,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.0
+      "suggestion_recall": 0.8571
     },
     "multi_month": {
       "n": 99,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.303
+      "suggestion_recall": 0.2929
     },
     "one_to_one": {
       "n": 71,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.6901
+      "suggestion_recall": 0.7183
     },
     "overpay": {
       "n": 5,
@@ -80,7 +84,7 @@
       "n": 41,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.5854
+      "suggestion_recall": 0.561
     },
     "split_share": {
       "n": 70,
@@ -104,9 +108,9 @@
     },
     "none": {
       "n": 431,
-      "automation": 0.9142,
+      "automation": 0.9118,
       "auto_precision": 1.0,
-      "suggestion_recall": 0.9745
+      "suggestion_recall": 0.9907
     },
     "remit_layout": {
       "n": 14,
@@ -115,21 +119,42 @@
       "suggestion_recall": 1.0
     }
   },
-  "reminders_drafted": 112,
+  "reminders_drafted": 136,
   "reminders_held": {
-    "dd_return": 1,
+    "dd_return": 8,
     "deceased": 12,
-    "unapplied_cash": 323
+    "unapplied_cash": 390
   },
-  "reminders_delayed_by_holds": 289,
+  "reminders_delayed_by_holds": 334,
   "wrong_reminders": 2,
   "wrong_reminder_examples": [
-    "INV-02695",
-    "INV-02960"
+    {
+      "invoice_id": "INV-02695",
+      "payer": "Shirley Watson",
+      "as_of": "2025-10-05",
+      "paid_by_label": "FP S PARKER EDWARD",
+      "paid_by_reference": "",
+      "paid_on": "2025-10-02",
+      "paid_by_type": "multi_month",
+      "shift": "married_name",
+      "system_outcome": "review"
+    },
+    {
+      "invoice_id": "INV-02960",
+      "payer": "Eileen Turner",
+      "as_of": "2025-10-19",
+      "paid_by_label": "FP MRS E CLARK INV",
+      "paid_by_reference": "",
+      "paid_on": "2025-10-01",
+      "paid_by_type": "one_to_one",
+      "shift": "married_name",
+      "system_outcome": "review"
+    }
   ],
-  "missed_reminders": 2,
+  "missed_reminders": 0,
+  "missed_reminder_examples": [],
   "balance_ok_all_runs": true,
-  "greedy_components_checked": 138,
+  "greedy_components_checked": 139,
   "greedy_suboptimal": 3,
   "auto_blocked_by_new_format_guard": 17,
   "stranded_lines": 0,
@@ -138,17 +163,17 @@
   "scorer": "rules",
   "thresholds": {
     "auto": 0.9966651926925867,
-    "review": 0.2689414213699951,
+    "review": 0.31002551887238755,
     "certified_lb": 0.9915879636010939,
     "n_at_auto": 1247,
     "k_at_auto": 1242,
     "target": 0.99
   },
-  "n_train_rows": 20448,
-  "n_threshold_rows": 8769,
+  "n_train_rows": 20481,
+  "n_threshold_rows": 8772,
   "threshold_set": {
-    "lines": 2196,
-    "correct_chosen": 1900,
+    "lines": 2199,
+    "correct_chosen": 1906,
     "months": "1-9 (historical lettrage)"
   }
 }
