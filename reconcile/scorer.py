@@ -7,9 +7,11 @@ something a finance clerk can check; a SHAP value is not.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import pickle
 from pathlib import Path
+from typing import Protocol
 
 import numpy as np
 from threadpoolctl import threadpool_limits
@@ -69,6 +71,17 @@ RULES = [
     (lambda f: f["hist_amount_match"], 0.7, "same amount as this payer's recent payments"),
 ]
 BIAS = -1.5
+
+
+class Scorer(Protocol):
+    """What the pipeline needs from a scorer: a name, one score per candidate's features, and the
+    plain-language reasons shown to a reviewer."""
+
+    name: str
+
+    def score(self, feats: list[dict]) -> np.ndarray: ...
+
+    def reasons(self, f: dict) -> list[str]: ...
 
 
 class RulesScorer:
@@ -132,21 +145,30 @@ class GBMScorer:
     def score(self, feats: list[dict]) -> np.ndarray:
         if not feats:
             return np.array([])
+        assert self.model is not None, "fit or load the model first"
         with threadpool_limits(2):
             return self.model.predict_proba(self.matrix(feats))[:, 1]
 
     def display_probability(self, feats: list[dict]) -> np.ndarray:
         est = self.calibrator or self.model
+        assert est is not None, "fit or load the model first"
         return est.predict_proba(self.matrix(feats))[:, 1]
 
     def reasons(self, f: dict) -> list[str]:
         return self._rules.reasons(f)
 
-    def save(self, path: Path) -> None:
+    def save(self, path: Path) -> str:
+        """Pickle the model; returns its sha256, which the caller stores next to the state."""
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(pickle.dumps({"model": self.model, "calibrator": self.calibrator}))
+        blob = pickle.dumps({"model": self.model, "calibrator": self.calibrator})
+        path.write_bytes(blob)
+        return hashlib.sha256(blob).hexdigest()
 
     @classmethod
-    def load(cls, path: Path) -> GBMScorer:
-        d = pickle.loads(path.read_bytes())
+    def load(cls, path: Path, sha256: str) -> GBMScorer:
+        """Unpickling runs code, so only a file whose hash matches the saved state is loaded."""
+        blob = path.read_bytes()
+        if hashlib.sha256(blob).hexdigest() != sha256:
+            raise ValueError(f"{path}: hash does not match the saved state; refusing to unpickle")
+        d = pickle.loads(blob)  # integrity checked above
         return cls(d["model"], d["calibrator"])
