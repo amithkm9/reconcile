@@ -1,5 +1,5 @@
-# Reminder drafts. Language data, not client data. Placeholders are filled locally; when an LLM
-# drafts text it only ever sees these placeholders, never the real names.
+# Reminder drafts. Language data, not client data: placeholders are filled locally by
+# reminders.draft_text. No model writes or sees reminder text.
 fr:
   private:
     1: "Madame, Monsieur,\nSauf erreur de notre part, la facture {invoice_id} ({period}) de {resident_name} à {facility}, échue le {due_date}, présente un solde de {open_amount}. Si le règlement est en cours, merci de ne pas tenir compte de ce message. Notre équipe reste à votre disposition pour toute question ou pour convenir d'un échéancier.\nBien cordialement,\nService facturation"
