@@ -81,7 +81,7 @@ def header_score(header: str, words: list[str]) -> float:
 
 
 def _fields(kind: str) -> list[str]:
-    req = [f for f in REQUIRED[kind] if f not in ("debit", "credit")]
+    req = REQUIRED[kind]
     return list(dict.fromkeys(req + OPTIONAL[kind]))
 
 
@@ -115,7 +115,7 @@ def _role_scores(fp: FileProfile, group: dict) -> dict[str, float]:
     name_toks = set(norm_text(group["pattern"]).lower().split())
     for role in REQUIRED:
         asg = assign_columns(fp, role)
-        req = [f for f in REQUIRED[role] if f not in ("debit", "credit")]
+        req = REQUIRED[role]
         score = sum(asg.get(f, ("", 0))[1] for f in req) / len(req)
         if any(w in name_toks for w in synonyms()["roles"][role]):
             score += 0.25
@@ -154,9 +154,7 @@ def _value_map(field: str, categories: list[str]) -> tuple[dict, list[str]]:
     return out, unresolved
 
 
-def _infer_doc_types(
-    path: Path, fp: FileProfile, type_col: str, amount_col: str, decimal: str, known: dict
-) -> dict:
+def _infer_doc_types(path: Path, type_col: str, amount_col: str, decimal: str, known: dict) -> dict:
     """Unknown document types: the one whose amounts are mostly negative is the credit note."""
     _, head, body = read_table(path)
     ti, ai = head.index(type_col), head.index(amount_col)
@@ -205,9 +203,8 @@ def propose(data_dir: Path, client: str) -> tuple[dict, list[dict]]:
     groups = discover(data_dir)
     profiles = [profile_file(g["files"][0], g["files"][1:]) for g in groups]
     roles = list(REQUIRED)
-    M = np.array(
-        [[_role_scores(fp, g)[r] for r in roles] for fp, g in zip(profiles, groups, strict=True)]
-    )
+    scores = [_role_scores(fp, g) for fp, g in zip(profiles, groups, strict=True)]
+    M = np.array([[sc[r] for r in roles] for sc in scores])
     gi, ri = linear_sum_assignment(-M)
     review: list[dict] = []
     files: dict = {}
@@ -223,13 +220,17 @@ def propose(data_dir: Path, client: str) -> tuple[dict, list[dict]]:
                 "score": round(float(M[g_idx, r_idx]), 2),
             }
         )
-        cols = {f: c for f, (c, _) in asg.items()}
-        if kind == "invoices" and "resident_name" in cols and "resident_last" in cols:
-            if asg["resident_last"][1] > asg["resident_name"][1]:
-                cols.pop("resident_name")
+        cols: dict[str, str | list[str]] = {f: c for f, (c, _) in asg.items()}
+        if (
+            kind == "invoices"
+            and "resident_name" in cols
+            and "resident_last" in cols
+            and asg["resident_last"][1] > asg["resident_name"][1]
+        ):
+            cols.pop("resident_name")
         if kind == "invoices" and "resident_name" not in cols and "resident_last" in cols:
-            cols["resident_name"] = [cols["resident_last"]] + (
-                [cols["resident_first"]] if "resident_first" in cols else []
+            cols["resident_name"] = [str(cols["resident_last"])] + (
+                [str(cols["resident_first"])] if "resident_first" in cols else []
             )
         cols.pop("resident_last", None)
         cols.pop("resident_first", None)
@@ -264,7 +265,11 @@ def propose(data_dir: Path, client: str) -> tuple[dict, list[dict]]:
                 vm, unresolved = _value_map(field, col.categories)
                 if unresolved and field == "doc_type" and "amount" in cols:
                     vm = _infer_doc_types(
-                        group["files"][0], fp, cols["doc_type"], cols["amount"], spec["decimal"], vm
+                        group["files"][0],
+                        str(cols["doc_type"]),
+                        str(cols["amount"]),
+                        spec["decimal"],
+                        vm,
                     )
                 if unresolved and field == "payer_type":
                     vm = _infer_payer_types(group["files"][0], cols, vm)
@@ -322,10 +327,8 @@ def propose(data_dir: Path, client: str) -> tuple[dict, list[dict]]:
                 }
             )
         files[kind] = spec
-        lang_votes.update(
-            "fr" if any(ch in "éèàçù" for c in fp.columns for ch in c.name.lower()) else "en"
-            for _ in [0]
-        )
+        accented = any(ch in "éèàçù" for c in fp.columns for ch in c.name.lower())
+        lang_votes["fr" if accented else "en"] += 1
     patterns = {}
     pmap = {
         "invoice": ("invoices", "invoice_id"),
