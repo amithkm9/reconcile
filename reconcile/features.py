@@ -2,7 +2,7 @@
 
 Every feature reads only the line itself, the candidate, and ledger state *before* this line
 (open amounts and payer history come from allocations already posted), so a feature can never see
-the future. `test_features_point_in_time` checks that.
+the future. `test_features_are_point_in_time` checks that.
 """
 
 from __future__ import annotations
@@ -76,13 +76,13 @@ def candidate_features(c: Cand, line: dict, L: Ledger) -> dict:
     months = month_tokens(f"{line['label']} {line.get('reference') or ''}")
     hist = L.pid_history.get(next(iter(pids)), []) if len(pids) == 1 else []
     hist = [h for h in hist if h[0] < d]
-    f = {f"mt_{m}": int(c.mtype == m) for m in MTYPES} | {
+    f: dict[str, float] = {f"mt_{m}": int(c.mtype == m) for m in MTYPES} | {
         f"pt_{p}": int(ptype == p) for p in PTYPES
     }
     f |= {
         "n_edges": len(c.edges),
         "residual_rel": c.residual / abs(amount) if amount else 0.0,
-        "residual_zero": int(abs(c.residual) <= 0),
+        "residual_zero": int(c.residual == 0),
         "covers_full": int(
             all(x >= o - SETTLE_TOLERANCE_CENTS for (_, x), o in zip(c.edges, opens, strict=True))
         )
