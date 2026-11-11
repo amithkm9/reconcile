@@ -96,7 +96,15 @@ def cmd_run(a) -> None:
         lang=data.language,
         audit=audit,
     )
-    save_state(L, p["state"], meta | {"aliases": [[k, sorted(v)] for k, v in L.aliases.items()], "sig_review": dict(L.sig_review)})
+    save_state(
+        L,
+        p["state"],
+        meta
+        | {
+            "aliases": [[k, sorted(v)] for k, v in L.aliases.items()],
+            "sig_review": dict(L.sig_review),
+        },
+    )
     print(json.dumps(res, default=str, indent=1))
 
 

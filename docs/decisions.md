@@ -48,7 +48,13 @@ Each entry: what was decided, the alternative, and why. These are the questions 
 
 ## Safety
 
-**New-format guard with probation.** A label layout never seen in the lettered history cannot be auto-posted. It stays in review until reviewers have handled at least 30 lines of it and accepted the system's top suggestion at least 97% of the time. On Azur, the learned model certified 99.0% on months 8–9 but measured 98.2% on the test months: in-distribution it was 99.8%, on the bank's new label format 90.2%. The guard lifts on measured evidence, not on a count.
+**New-format guard with probation.** A label layout never seen in the lettered history cannot be auto-posted. Lines that would otherwise have been auto-posted in it go to review instead. Why it exists: on Azur, the learned model certified 99.0% on months 8–9 but measured 98.2% on the test months. It was 99.8% in-distribution and 90.2% on the bank's new label format.
+
+The guard lifts by the same rule as the auto threshold: the 95% Clopper-Pearson lower bound on how often reviewers accepted the top suggestion, over the lines the guard held back, must reach 99%. That is about 299 accepted in a row. It took two wrong versions to get here, and both are worth knowing:
+1. *Wrong sample.* Counting every reviewed line in the layout. Partials and multi-month payments go to review in any layout, so acceptance sat at 67% (264/393 on Azur) and the guard could never lift.
+2. *Too weak a test.* 30 held lines at ≥ 97% accepted. The guard lifted on Azur and released a slice that was really 95.2% (rules) and 91.0% (model) right. For the model that meant 18 wrong auto-posts, and the test-set lower bound fell to 98.4%, below target. 30/30 certifies only about 90.5%.
+
+These numbers are from runs superseded by the current code. The cost of the right rule: a format change means weeks to months of extra review on a small client. The real fix is operational, and it is not built here. A new layout should raise an alert, so that someone teaches the label parser the new layout in week one rather than waiting out probation.
 
 **Reminder holds.** Chasing a family that already paid is the costliest error in this domain. A reminder is held when:
 - any suggestion pending review (top or alternative) touches the invoice;
@@ -70,7 +76,7 @@ The price is measured and reported: reminders for invoices that really were unpa
 - a document type whose amounts are negative is a credit note;
 - a payer paying for many residents is a public body.
 
-**The mapping eval uses a header pool disjoint from the mapper's vocabulary.** Otherwise a 100% score would prove nothing. The deterministic mapper gets the 3 clients 100% right and 76% of decisions right on 12 unseen-vocabulary variants.
+**The mapping eval uses a header pool disjoint from the mapper's vocabulary.** Otherwise a 100% score would prove nothing. The deterministic mapper gets the 3 clients 100% right, and 70% of decisions right (388/551) on the 12 unseen-vocabulary variants.
 
 **Data-quality gates.** A template can parse every value and still be wrong; the constant sort-code columns mapped as debit and credit did exactly that. On load, bank amounts that barely vary fail, and payer shares that do not sum to 100% fail. Wrong templates fail loudly instead of loading garbage. 11 of 15 eval schemas are refused, and 1 loads while wrong.
 

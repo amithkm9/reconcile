@@ -214,8 +214,6 @@ def write_table(
     path.write_text(buf.getvalue(), encoding=spec.get("encoding", "utf-8"))
 
 
-
-
 def write_client(
     world: World,
     layout: dict,

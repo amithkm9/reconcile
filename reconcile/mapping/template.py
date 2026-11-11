@@ -304,13 +304,17 @@ def _sanity(payers: pd.DataFrame, bank: pd.DataFrame) -> None:
     """Data-quality gates: a template can parse every value and still be wrong (e.g. a constant
     'sort code' column mapped as the amount). These checks catch mappings that make no sense."""
     if len(bank) >= 50 and bank["amount_cents"].nunique() < 0.05 * len(bank):
-        raise TemplateError(f"bank: only {bank['amount_cents'].nunique()} distinct amounts in {len(bank)} lines; "
-                            "the amount column(s) are probably mapped wrong")
+        raise TemplateError(
+            f"bank: only {bank['amount_cents'].nunique()} distinct amounts in {len(bank)} lines; "
+            "the amount column(s) are probably mapped wrong"
+        )
     sums = payers.groupby("resident_id")["share_pct"].sum()
     bad = ((sums - 100).abs() > 1).mean() if len(sums) else 0
     if bad > 0.05:
-        raise TemplateError(f"payers: shares do not add up to 100% for {bad:.0%} of residents; "
-                            "share_pct (or resident_id) is probably mapped wrong")
+        raise TemplateError(
+            f"payers: shares do not add up to 100% for {bad:.0%} of residents; "
+            "share_pct (or resident_id) is probably mapped wrong"
+        )
 
 
 def load_client(template: dict | Path, data_dir: Path, validate: bool = True) -> ClientData:
@@ -339,9 +343,15 @@ def load_client(template: dict | Path, data_dir: Path, validate: bool = True) ->
     )
     _sanity(payers, bank)
     if validate:  # contract check on a sample: fast, and enough to catch a wrong template
-        for kind, frame in (("invoices", invoices), ("payers", payers), ("remittances", remittances)):
+        for kind, frame in (
+            ("invoices", invoices),
+            ("payers", payers),
+            ("remittances", remittances),
+        ):
             validate_frame(frame.head(300), kind)
-        validate_frame(bank[["bank_hash", "date", "label", "reference", "amount_cents"]].head(300), "bank")
+        validate_frame(
+            bank[["bank_hash", "date", "label", "reference", "amount_cents"]].head(300), "bank"
+        )
     return ClientData(
         tpl["client"], tpl, invoices, payers, remittances, bank, tpl.get("language", "en")
     )

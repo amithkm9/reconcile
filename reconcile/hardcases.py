@@ -204,3 +204,48 @@ def check(case: dict, result: dict) -> list[str]:
         if got != status:
             problems.append(f"reminder {inv}: {got} != {status}")
     return problems
+
+
+def write_report(out: Path = Path("reports/hard_cases.md")) -> int:
+    """Run every case and write a table of what the system did; returns the number of failures."""
+    spec = load_cases()
+    rows, failures = [], 0
+    for case in spec["cases"]:
+        res = run_case(spec, case)
+        problems = check(case, res)
+        failures += bool(problems)
+        exp = case.get("expect", {})
+        want = exp.get("outcome") or "/".join(exp.get("outcome_in", [])) or "-"
+        if case.get("reminders"):
+            want_r = ", ".join(f"{k}: {v}" for k, v in case["reminders"].items())
+            got_r = ", ".join(f"{k}: {res['reminders'].get(k, 'none')}" for k in case["reminders"])
+            want = want_r if want == "-" else f"{want}; {want_r}"
+            got = got_r if "outcome" not in res else f"{res['outcome']}; {got_r}"
+        else:
+            got = res.get("outcome", "-")
+        score = f"{res['score']:.3f}" if res.get("score") is not None else "-"
+        reason = (res.get("reasons") or ["-"])[0]
+        rows.append(
+            f"| {case['id']} | {want} | {got} | {score} | {reason} | "
+            f"{'pass' if not problems else 'FAIL: ' + '; '.join(problems)} |"
+        )
+    lines = [
+        "# Hard cases",
+        "",
+        f"{len(spec['cases'])} hand-written situations from `eval/hard_cases.yaml`, run through the real "
+        "weekly pipeline with the rules scorer and fixed thresholds (auto >= 0.95, review >= 0.30). "
+        f"{len(spec['cases']) - failures}/{len(spec['cases'])} pass.",
+        "",
+        "| case | expected | got | score | first reason | result |",
+        "|---|---|---|---|---|---|",
+        *rows,
+    ]
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return failures
+
+
+if __name__ == "__main__":
+    n_fail = write_report()
+    print(f"reports/hard_cases.md written, {n_fail} failure(s)")
+    raise SystemExit(1 if n_fail else 0)

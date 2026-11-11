@@ -45,7 +45,11 @@ RULES = [
         1.0,
         "only one combination of open shares fits the amount",
     ),
-    (lambda f: f["n_valid"] > 1, -1.0, "several combinations of invoices fit the amount (never auto)"),
+    (
+        lambda f: f["n_valid"] > 1,
+        -1.0,
+        "several combinations of invoices fit the amount (never auto)",
+    ),
     (lambda f: f["name_score"] >= 95, 3.0, "payer name matches the payer table"),
     (lambda f: 85 <= f["name_score"] < 95, 1.5, "payer name is close (typo?)"),
     (lambda f: f["alias_hit"], 2.0, "this bank name paid this resident before"),

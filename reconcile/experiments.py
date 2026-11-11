@@ -74,9 +74,11 @@ def _present_values(data_dir: Path, truth: dict) -> dict:
 
     out: dict[str, set] = {}
     for _kind, tspec in truth.items():
-        for field in (tspec.get("values") or {}):
+        for field in tspec.get("values") or {}:
             header = tspec["columns"].get(field)
-            path = next(iter(sorted(Path(data_dir).glob(str(tspec["file"]).replace("{end}", "*")))), None)
+            path = next(
+                iter(sorted(Path(data_dir).glob(str(tspec["file"]).replace("{end}", "*")))), None
+            )
             if header and path:
                 _, head, body = read_table(path)
                 if header in head:
@@ -100,7 +102,9 @@ def score_template(tpl: dict, truth: dict, present: dict | None = None) -> dict:
             got = sorted(got) if isinstance(got, list) else got
             checks.append((f"{kind}.{f}", got == want))
         checks.append((f"{kind}.date_format", pspec.get("date_format") == tspec["date_format"]))
-        if kind != "payers":  # the payer file holds whole percentages: its decimal mark is not observable
+        if (
+            kind != "payers"
+        ):  # the payer file holds whole percentages: its decimal mark is not observable
             checks.append((f"{kind}.decimal", pspec.get("decimal") == tspec.get("decimal", ".")))
         if kind == "bank":
             checks.append(
@@ -200,7 +204,12 @@ def write_mapping_report(results: list[dict], out_dir: Path) -> None:
             )
         else:
             lines.append(f"| {model} | {vals[0]} | | |")
+    var = [r["fallback"] for r in results if r["target"].startswith("variant")]
+    v_ok, v_total = sum(v["correct"] for v in var), sum(v["decisions"] for v in var)
     lines += [
+        "",
+        f"On the {len(var)} unseen-vocabulary variants alone, the fallback gets {v_ok}/{v_total} "
+        f"decisions right ({100 * v_ok / v_total:.1f}%).",
         "",
         "## Per schema (fallback)",
         "",
@@ -222,8 +231,12 @@ def write_mapping_report(results: list[dict], out_dir: Path) -> None:
 # ---------------- noise sweep ----------------
 
 
-def noise_sweep(levels=(0.5, 1.0, 1.5, 2.0, 3.0), client: str = "azur", scorer: str = "rules",
-                out_dir: Path = Path("reports")) -> list[dict]:
+def noise_sweep(
+    levels=(0.5, 1.0, 1.5, 2.0, 3.0),
+    client: str = "azur",
+    scorer: str = "rules",
+    out_dir: Path = Path("reports"),
+) -> list[dict]:
     """Regenerate the client at k x every messiness rate (same seed) and rerun the full protocol.
     Answers: how fast does it degrade, and does precision hold while automation falls?"""
     from reconcile.evaluate import evaluate_client
@@ -233,21 +246,39 @@ def noise_sweep(levels=(0.5, 1.0, 1.5, 2.0, 3.0), client: str = "azur", scorer: 
     for k in levels:
         d = Path("data/sweep") / f"k{k}"
         generate_client(client, d, noise=k)
-        m = evaluate_client(client, Path(f"templates/{client}.yaml"), d / client, scorer, out_dir=None).metrics
-        rows.append({"noise": k, "auto_precision": m["auto_precision"], "lb95": m["auto_precision_lb95"],
-                     "automation": m["automation_rate"], "suggestion_recall": m["suggestion_recall"],
-                     "review_per_week": m["review_per_week"], "wrong_reminders": m["wrong_reminders"],
-                     "t_auto": m["thresholds"]["auto"]})
+        m = evaluate_client(
+            client, Path(f"templates/{client}.yaml"), d / client, scorer, out_dir=None
+        ).metrics
+        rows.append(
+            {
+                "noise": k,
+                "auto_precision": m["auto_precision"],
+                "lb95": m["auto_precision_lb95"],
+                "automation": m["automation_rate"],
+                "suggestion_recall": m["suggestion_recall"],
+                "review_per_week": m["review_per_week"],
+                "wrong_reminders": m["wrong_reminders"],
+                "t_auto": m["thresholds"]["auto"],
+            }
+        )
         print(rows[-1])
     _plot_sweep(rows, out_dir / f"noise_sweep_{client}_{scorer}.png", f"{client}, {scorer} scorer")
-    lines = [f"# Noise sweep: {client}, {scorer} scorer", "",
-             "Every messiness rate (typos, missing references, partial and multi-month payments, missing statements, unknown credits...) multiplied by k; same seed; full protocol each time (thresholds re-chosen on history, reported on months 10-12).", "",
-             "| k | auto precision | 95% lower bound | automation | suggestion recall | review / week | wrong reminders |",
-             "|---|---|---|---|---|---|---|"]
+    lines = [
+        f"# Noise sweep: {client}, {scorer} scorer",
+        "",
+        "Every messiness rate (typos, missing references, partial and multi-month payments, missing statements, unknown credits...) multiplied by k; same seed; full protocol each time (thresholds re-chosen on history, reported on months 10-12).",
+        "",
+        "| k | auto precision | 95% lower bound | automation | suggestion recall | review / week | wrong reminders |",
+        "|---|---|---|---|---|---|---|",
+    ]
     fmt = lambda x: "n/a" if x is None else f"{100 * x:.1f}%"  # noqa: E731
     for r in rows:
-        lines.append(f"| {r['noise']} | {fmt(r['auto_precision'])} | {fmt(r['lb95'])} | {fmt(r['automation'])} | {fmt(r['suggestion_recall'])} | {r['review_per_week']} | {r['wrong_reminders']} |")
-    (out_dir / f"noise_sweep_{client}_{scorer}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        lines.append(
+            f"| {r['noise']} | {fmt(r['auto_precision'])} | {fmt(r['lb95'])} | {fmt(r['automation'])} | {fmt(r['suggestion_recall'])} | {r['review_per_week']} | {r['wrong_reminders']} |"
+        )
+    (out_dir / f"noise_sweep_{client}_{scorer}.md").write_text(
+        "\n".join(lines) + "\n", encoding="utf-8"
+    )
     return rows
 
 
@@ -259,9 +290,27 @@ def _plot_sweep(rows: list[dict], path: Path, title: str) -> None:
 
     k = [r["noise"] for r in rows]
     fig, ax = plt.subplots(figsize=(6.4, 3.6), dpi=150)
-    ax.plot(k, [100 * (r["auto_precision"] or 0) for r in rows], marker="o", color="#1f5f8b", label="auto precision")
-    ax.plot(k, [100 * (r["automation"] or 0) for r in rows], marker="s", color="#c46b2b", label="automation rate")
-    ax.plot(k, [100 * (r["suggestion_recall"] or 0) for r in rows], marker="^", color="#5b8c5a", label="suggestion recall")
+    ax.plot(
+        k,
+        [100 * (r["auto_precision"] or 0) for r in rows],
+        marker="o",
+        color="#1f5f8b",
+        label="auto precision",
+    )
+    ax.plot(
+        k,
+        [100 * (r["automation"] or 0) for r in rows],
+        marker="s",
+        color="#c46b2b",
+        label="automation rate",
+    )
+    ax.plot(
+        k,
+        [100 * (r["suggestion_recall"] or 0) for r in rows],
+        marker="^",
+        color="#5b8c5a",
+        label="suggestion recall",
+    )
     ax.axhline(99, color="#888", lw=0.8, ls="--")
     ax.text(k[-1], 99.3, "99% target", ha="right", va="bottom", fontsize=7, color="#666")
     ax.set_xlabel("messiness multiplier k (1 = default rates)")
@@ -278,8 +327,12 @@ def _plot_sweep(rows: list[dict], path: Path, title: str) -> None:
 # ---------------- feedback loop ----------------
 
 
-def feedback_loop(client: str = "azur", error_rate: float = 0.03, retrain_every: int = 4,
-                  out_dir: Path = Path("reports")) -> list[dict]:
+def feedback_loop(
+    client: str = "azur",
+    error_rate: float = 0.03,
+    retrain_every: int = 4,
+    out_dir: Path = Path("reports"),
+) -> list[dict]:
     """Cold start, no historical lettrage: hand-tuned rules with a conservative auto threshold, a
     simulated reviewer (3% error) works the queue each week, and every `retrain_every` weeks a
     model is retrained on the review labels accumulated so far. Tracks live automation/precision
@@ -305,47 +358,87 @@ def feedback_loop(client: str = "azur", error_rate: float = 0.03, retrain_every:
     L = Ledger(data)
     M = Matcher(L, data.template)
     reviewer = SimReviewer(truth.keys, error_rate, seed=1)
-    scorer, th = RulesScorer(), Thresholds(auto=0.999, review=0.3, certified_lb=0.0, n_at_auto=0, k_at_auto=0)
+    scorer, th = (
+        RulesScorer(),
+        Thresholds(auto=0.999, review=0.3, certified_lb=0.0, n_at_auto=0, k_at_auto=0),
+    )
     weeks = week_ends(months[0], month_end(months[-1]))
-    curve, window = [], []
+    # Reported per calendar month of the bank line, not per 4-week window: monthly direct-debit
+    # runs dominate the auto count, and a window that catches only part of one looks like a dip.
+    month_state: dict[str, dict] = {}
     for i, w in enumerate(weeks):
-        before = set(L.decisions)
-        run_week(L, M, w, scorer=scorer, th=th, run_id=f"fb-{w}", reviewer=reviewer, lang=data.language,
-                 do_reminders=False)
-        window += [h for h in L.decisions if h not in before or L.decisions[h].get("run_id") == f"fb-{w}"]
+        res = run_week(
+            L,
+            M,
+            w,
+            scorer=scorer,
+            th=th,
+            run_id=f"fb-{w}",
+            reviewer=reviewer,
+            lang=data.language,
+            do_reminders=False,
+        )
+        ms = month_state.setdefault(f"{w:%Y-%m}", {"guard": 0})
+        ms["guard"] += res.get("guard_new_format", 0) or 0
+        ms["labels"], ms["scorer"] = len(L.labels), scorer.name
         if (i + 1) % retrain_every == 0:
-            hs = {h for h in window if truth.cls.get(h) == "ar"}
-            auto = [h for h in hs if L.decisions[h].get("system_outcome") == "auto"]
-            ok = sum(L.decisions[h]["top"]["key"] == truth.keys[h] for h in auto)
-            curve.append({"week": w.isoformat(), "labels": len(L.labels), "scorer": scorer.name,
-                          "automation": round(len(auto) / max(1, len(hs)), 4),
-                          "auto_precision": round(ok / len(auto), 4) if auto else None,
-                          "lb95": round(cp_lower(ok, len(auto)), 4)})
-            print(curve[-1])
-            window = []
             labels = L.labels
             if len(labels) >= 300 and len({x["y"] for x in labels}) == 2:
                 cut = int(0.75 * len(labels))
-                model = GBMScorer().fit([x["features"] for x in labels[:cut]], [x["y"] for x in labels[:cut]])
+                model = GBMScorer().fit(
+                    [x["features"] for x in labels[:cut]], [x["y"] for x in labels[:cut]]
+                )
                 recent = labels[cut:]
-                new_th = choose_thresholds(model.score([x["features"] for x in recent]),
-                                           np.array([x["y"] for x in recent], dtype=bool))
+                new_th = choose_thresholds(
+                    model.score([x["features"] for x in recent]),
+                    np.array([x["y"] for x in recent], dtype=bool),
+                )
                 if new_th.auto != float("inf"):  # only switch once the model can certify something
                     scorer, th = model, new_th
+    by_month: dict[str, list[str]] = {}
+    for h in L.decisions:
+        if truth.cls.get(h) == "ar":
+            by_month.setdefault(str(L.lines[h]["date"])[:7], []).append(h)
+    curve = []
+    for m in sorted(by_month):
+        hs = by_month[m]
+        auto = [h for h in hs if L.decisions[h].get("system_outcome") == "auto"]
+        ok = sum(L.decisions[h]["top"]["key"] == truth.keys[h] for h in auto)
+        st = month_state.get(m, {})
+        curve.append(
+            {
+                "week": m,
+                "labels": st.get("labels", len(L.labels)),
+                "scorer": st.get("scorer", scorer.name),
+                "automation": round(len(auto) / max(1, len(hs)), 4),
+                "auto_precision": round(ok / len(auto), 4) if auto else None,
+                "lb95": round(cp_lower(ok, len(auto)), 4),
+                "guard": st.get("guard", 0),
+            }
+        )
+        print(curve[-1])
     _plot_feedback(curve, out_dir / f"feedback_{client}.png")
-    lines = [f"# Feedback loop: {client}, cold start, simulated reviewer ({100 * error_rate:.0f}% error)", "",
-             "No historical lettrage. Week 1 runs hand-tuned rules with a conservative threshold; the reviewer's decisions become labels; every "
-             f"{retrain_every} weeks a model is retrained on all labels so far and its threshold chosen on the most recent quarter of them. Each row is one 4-week window of live decisions.", "",
-             "Caveat: review labels are a biased sample (only lines that reached the queue), so the threshold is chosen on a stream that over-represents hard cases.", "",
-             "| window ending | labels so far | scorer in use | automation | auto precision | 95% lower bound |", "|---|---|---|---|---|---|"]
+    lines = [
+        f"# Feedback loop: {client}, cold start, simulated reviewer ({100 * error_rate:.0f}% error)",
+        "",
+        "No historical lettrage. Week 1 runs hand-tuned rules with a conservative threshold; the reviewer's decisions become labels; every "
+        f"{retrain_every} weeks a model is retrained on all labels so far and its threshold chosen on the most recent quarter of them. Each row is one calendar month of bank lines (by line date). From October the bank's transfer labels use a new layout; the last column counts auto-posts the new-format guard held back for review.",
+        "",
+        "Caveat: review labels are a biased sample (only lines that reached the queue), so the threshold is chosen on a stream that over-represents hard cases.",
+        "",
+        "| month | labels so far | scorer in use | automation | auto precision | 95% lower bound | held by format guard |",
+        "|---|---|---|---|---|---|---|",
+    ]
     fmt = lambda x: "n/a" if x is None else f"{100 * x:.1f}%"  # noqa: E731
     for r in curve:
-        lines.append(f"| {r['week']} | {r['labels']} | {r['scorer']} | {fmt(r['automation'])} | {fmt(r['auto_precision'])} | {fmt(r['lb95'])} |")
+        lines.append(
+            f"| {r['week']} | {r['labels']} | {r['scorer']} | {fmt(r['automation'])} | {fmt(r['auto_precision'])} | {fmt(r['lb95'])} | {r['guard']} |"
+        )
     (out_dir / f"feedback_{client}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return curve
 
 
-def _plot_feedback(curve: list[dict], path: Path, shift_week: str | None = "2025-10-05") -> None:
+def _plot_feedback(curve: list[dict], path: Path, shift_month: str | None = "2025-10") -> None:
     import datetime as dt
 
     import matplotlib
@@ -353,21 +446,31 @@ def _plot_feedback(curve: list[dict], path: Path, shift_week: str | None = "2025
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    x = [dt.date.fromisoformat(r["week"]) for r in curve]
+    x = [dt.date.fromisoformat(r["week"] + "-15") for r in curve]
     fig, ax = plt.subplots(figsize=(7.2, 3.8), dpi=150)
-    ax.plot(x, [100 * r["automation"] for r in curve], marker="s", color="#c46b2b", label="automation rate")
-    ax.plot(x, [100 * (r["auto_precision"] or 0) for r in curve], marker="o", color="#1f5f8b", label="auto precision")
-    if shift_week:
-        sx = dt.date.fromisoformat(shift_week)
+    ax.plot(
+        x,
+        [100 * r["automation"] for r in curve],
+        marker="s",
+        color="#c46b2b",
+        label="automation rate",
+    )
+    ax.plot(
+        x,
+        [100 * (r["auto_precision"] or 0) for r in curve],
+        marker="o",
+        color="#1f5f8b",
+        label="auto precision",
+    )
+    if shift_month:
+        sx = dt.date.fromisoformat(shift_month + "-01")
         ax.axvline(sx, color="#999", lw=0.8, ls="--")
-        ax.annotate("bank changes its label format:\nnew layout routed to review until\n30 reviewed lines at >=97% accepted",
-                    xy=(sx, 55), xytext=(x[2], 30), fontsize=7, color="#444",
-                    arrowprops={"arrowstyle": "->", "color": "#999", "lw": 0.8})
-    ax.set_ylabel("% of AR lines (4-week window)")
+        ax.text(sx, 8, " bank changes its\n transfer label format", fontsize=7, color="#444")
+    ax.set_ylabel("% of AR lines (by month)")
     ax.set_ylim(0, 105)
     ax.set_title("Cold start, a year of weekly runs with a simulated reviewer", fontsize=10)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.legend(frameon=False, fontsize=8, loc="lower right")
+    ax.legend(frameon=False, fontsize=8, loc="center left")
     fig.autofmt_xdate()
     fig.tight_layout()
     fig.savefig(path)
@@ -379,10 +482,18 @@ def replot_feedback(client: str = "azur", out_dir: Path = Path("reports")) -> No
     curve = []
     for line in (out_dir / f"feedback_{client}.md").read_text().splitlines():
         cells = [c.strip() for c in line.strip("|").split("|")]
-        if len(cells) == 6 and cells[0][:2] == "20":
+        if len(cells) == 7 and cells[0][:2] == "20":
             pct = lambda v: None if v == "n/a" else float(v.rstrip("%")) / 100  # noqa: E731
-            curve.append({"week": cells[0], "labels": int(cells[1]), "scorer": cells[2],
-                          "automation": pct(cells[3]), "auto_precision": pct(cells[4])})
+            curve.append(
+                {
+                    "week": cells[0],
+                    "labels": int(cells[1]),
+                    "scorer": cells[2],
+                    "automation": pct(cells[3]),
+                    "auto_precision": pct(cells[4]),
+                    "guard": int(cells[6]),
+                }
+            )
     _plot_feedback(curve, out_dir / f"feedback_{client}.png")
 
 

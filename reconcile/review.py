@@ -22,7 +22,8 @@ def apply_decision(
     alt_index: int = 0,
     actor: str = "human",
     audit: AuditLog | None = None,
-) -> None:
+) -> bool:
+    """Apply one review action. Returns False, posting nothing, if the picked invoices no longer fit."""
     dec = L.decisions[bank_hash]
     options = [dec["top"]] + dec.get("alts", [])
     if action == "accept":
@@ -37,7 +38,9 @@ def apply_decision(
         # Another decision already used these invoices: refuse, keep the line in the queue.
         dec.update(resolution="conflict")
         if audit:
-            audit.event("review_conflict", bank_hash=bank_hash, action=action, actor=actor, run_id=run_id)
+            audit.event(
+                "review_conflict", bank_hash=bank_hash, action=action, actor=actor, run_id=run_id
+            )
         return False
     for i, opt in enumerate(options):
         y = int(picked is not None and opt is picked)
@@ -53,9 +56,13 @@ def apply_decision(
                 "date": L.lines[bank_hash]["date"],
             }
         )
-    sig = label_signature(L.lines[bank_hash]["label"])
-    L.sig_review[sig][0] += 1
-    L.sig_review[sig][1] += int(action == "accept")
+    if dec.get("guard") == "new_format":
+        # Probation evidence: a line the system would have auto-posted but for its new layout.
+        # Only these count; the rest of the queue (partials, multi-month...) would be reviewed in
+        # any layout and says nothing about whether this layout is safe to auto-post.
+        sig = label_signature(L.lines[bank_hash]["label"])
+        L.sig_review[sig][0] += 1
+        L.sig_review[sig][1] += int(action == "accept")
     if picked is not None:
         edges = [tuple(e) for e in picked["edges"]]
         L.post(
@@ -77,6 +84,7 @@ def apply_decision(
             run_id=run_id,
             edges=picked["edges"] if picked else None,
         )
+    return True
 
 
 class SimReviewer:

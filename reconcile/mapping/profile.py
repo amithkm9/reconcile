@@ -173,7 +173,9 @@ def profile_column(name: str, values: list[str]) -> ColumnProfile:
     if distinct == 1 and len(nonblank) >= 20:
         cp.kind, cp.samples = "constant", nonblank[:1]  # account numbers, sort codes: never money
         return cp
-    sample = nonblank[:: max(1, len(nonblank) // 600)][:600]  # spread over the file, not just its start
+    sample = nonblank[:: max(1, len(nonblank) // 600)][
+        :600
+    ]  # spread over the file, not just its start
     # Typing needs >= 98% to parse; disambiguation keeps only the format(s) parsing the MOST
     # values: one "13/01/2025" is enough to rule out month-first, however rare it is.
     rates = {f: _parses(nonblank, f) for f in DATE_FORMATS}

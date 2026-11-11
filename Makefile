@@ -3,7 +3,7 @@ SCORER ?= rules
 WEEK ?= 2025-12-31
 PY := uv run python
 
-.PHONY: data onboard mapping-eval eval sweep feedback run export app test lint all
+.PHONY: data onboard mapping-eval hard-cases eval sweep feedback run export app test lint all experiments
 
 data:            ## synthetic exports + hidden ground truth for azur, maple, client3 (+ mapping-eval variants)
 	$(PY) -m reconcile.generate --variants
@@ -13,6 +13,9 @@ onboard:         ## profile a client's exports, propose a template, confirm, sav
 
 mapping-eval:    ## proposed templates vs true mapping on 3 clients + 12 variant schemas
 	$(PY) -m reconcile.experiments mapping
+
+hard-cases:      ## the 30 hand-written cases through the real pipeline; writes reports/hard_cases.md
+	$(PY) -m reconcile.hardcases
 
 eval:            ## history -> thresholds -> weekly test runs; writes reports/eval_$(CLIENT)_*.md and state/
 	$(PY) -m reconcile.pipeline eval --client $(CLIENT) --scorer $(SCORER)
@@ -41,3 +44,9 @@ lint:
 all: data
 	for c in azur maple client3; do $(MAKE) eval CLIENT=$$c SCORER=rules || exit 1; done
 	$(MAKE) mapping-eval
+	$(MAKE) hard-cases
+
+experiments:     ## the slower reports: learned model on all 3 clients, noise sweep, feedback loop
+	for c in azur maple client3; do $(MAKE) eval CLIENT=$$c SCORER=model || exit 1; done
+	$(MAKE) sweep CLIENT=azur SCORER=rules
+	$(MAKE) feedback CLIENT=azur

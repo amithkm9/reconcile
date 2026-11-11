@@ -3,6 +3,7 @@ threshold certification, ambiguity handling, conflict handling, and point-in-tim
 
 from __future__ import annotations
 
+import copy
 import datetime as dt
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from reconcile.generate.__main__ import generate_client
 from reconcile.hardcases import build_case, load_cases
 from reconcile.ledger import Ledger
 from reconcile.mapping.template import _load_bank_file, load_client
+from reconcile.review import apply_decision
 
 TEMPLATE = Path("templates/azur.yaml")
 
@@ -134,3 +136,53 @@ def test_features_are_point_in_time():
     before = candidate_features(c, line, L)
     L.pid_history[share.pid].append((dt.date(2025, 3, 11), 240000))  # a payment from the future
     assert candidate_features(c, line, L) == before
+
+
+def test_review_accept_reports_success_and_conflict(small_run):
+    """The review app persists only when apply_decision says the post happened."""
+    L = copy.deepcopy(small_run.ledger)
+    pending = [
+        h
+        for h, d in sorted(L.decisions.items())
+        if d.get("outcome") == "review" and not d.get("final") and d["top"]["edges"]
+    ]
+    assert pending
+    # a line whose suggestion fits now but cannot fit twice (each edge takes over half the open share)
+    h = next(
+        h
+        for h in pending
+        if all(0 < c <= L.open(k) < 2 * c for k, c in L.decisions[h]["top"]["edges"])
+    )
+    n_labels = len(L.labels)
+    assert apply_decision(L, h, "accept", "t") is True
+    assert L.decisions[h]["final"] and len(L.labels) > n_labels
+    assert [a["source"] for a in L.allocations if a["bank_hash"] == h] == ["review_accept"] * len(
+        L.decisions[h]["final_edges"]
+    )
+    # the same invoices are now taken: a second accept must be refused, not double-posted
+    L.decisions[h]["final"] = False
+    before = len(L.allocations)
+    assert apply_decision(L, h, "accept", "t") is False
+    assert len(L.allocations) == before
+
+
+def test_new_layout_needs_certified_probation():
+    """A new bank-label layout is released only on the same evidence as the auto threshold."""
+    from collections import defaultdict
+    from types import SimpleNamespace
+
+    from reconcile.normalize import label_signature
+    from reconcile.state import _new_format
+
+    line = {"label": "VIREMENT RECU /DE M VIDAL LUC"}
+    sig = label_signature(line["label"])
+    L = SimpleNamespace(
+        signature_counts={"VIR SEPA <A>": 5000}, sig_review=defaultdict(lambda: [0, 0])
+    )
+    assert _new_format(L, line)  # never seen: held
+    L.sig_review[sig] = [30, 30]
+    assert _new_format(L, line)  # 30/30 certifies only ~90.5%: still held
+    L.sig_review[sig] = [400, 398]
+    assert _new_format(L, line)  # 99.5% observed, lower bound below 99%: still held
+    L.sig_review[sig] = [299, 299]
+    assert not _new_format(L, line)  # lower bound >= 99%: released

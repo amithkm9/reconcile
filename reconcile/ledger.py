@@ -55,7 +55,7 @@ def build_shares(data: ClientData) -> list[Share]:
         for p, cents in zip(plist, split_shares(net, items), strict=True):
             pk = payer_key(p["payer_name"])
             pid = payer_identity(pk, p["payer_type"], r["resident_id"])
-            while any(x.key == f"{r['invoice_id']}|{pid}" for x in shares[-len(plist):]):
+            while any(x.key == f"{r['invoice_id']}|{pid}" for x in shares[-len(plist) :]):
                 pid += "#2"  # a resident and a namesake relative both paying: keep two shares
             shares.append(
                 Share(
@@ -99,8 +99,12 @@ class Ledger:
         self.reminders: list[dict] = []
         self.runs: list[dict] = []
         self.aliases: dict[str, set[str]] = defaultdict(set)
-        self.signature_counts: dict[str, int] = defaultdict(int)  # label layouts lettered in history
-        self.sig_review: dict[str, list[int]] = defaultdict(lambda: [0, 0])  # [reviewed, top accepted]
+        self.signature_counts: dict[str, int] = defaultdict(
+            int
+        )  # label layouts lettered in history
+        self.sig_review: dict[str, list[int]] = defaultdict(
+            lambda: [0, 0]
+        )  # guard-held lines of a new layout: [reviewed, top accepted]
         self.pid_history: dict[str, list[tuple[dt.date, int]]] = defaultdict(list)
 
     # ---- queries ----

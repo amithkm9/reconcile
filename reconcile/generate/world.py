@@ -44,7 +44,6 @@ MONTH_WORDS = {
 }
 
 
-
 @dataclass
 class Payer:
     name: str
@@ -668,7 +667,18 @@ class _Gen:
             )
         ctx, tkind, tag = self._context(it, mi)
         cls = "ar" if edges else "unapplied"
-        line = Line(it["date"], it["cents"], tkind, ctx, cls, mt, sorted(inv_edges.items()), residual, tag, mi)
+        line = Line(
+            it["date"],
+            it["cents"],
+            tkind,
+            ctx,
+            cls,
+            mt,
+            sorted(inv_edges.items()),
+            residual,
+            tag,
+            mi,
+        )
         line.share_edges = sorted(edges)
         return line
 

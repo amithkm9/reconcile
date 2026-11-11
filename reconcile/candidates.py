@@ -196,7 +196,9 @@ class Matcher:
     def _mandate_pids(self, text: str) -> list[str]:
         """Payers whose direct-debit mandate is in the text: exact pattern hits, else a truncated
         reference (UK schemes cut at 18 chars) that is the prefix of exactly one known mandate."""
-        exact = [self.mandate_pid[m] for m in find_pattern(text, self.p_mandate) if m in self.mandate_pid]
+        exact = [
+            self.mandate_pid[m] for m in find_pattern(text, self.p_mandate) if m in self.mandate_pid
+        ]
         if exact:
             return exact
         for tok in reversed(text.upper().split()):
@@ -374,7 +376,13 @@ class Matcher:
             out.append((edges, n_ex, n_add, len(subset)))
         sig = {"n_valid": max(1, n_valid), "facility_hit": int(bool(facs))}
         return [
-            Cand(line["bank_hash"], "bulk", e, 0, sig | {"n_excluded": x, "n_added": a, "bulk_size": n})
+            Cand(
+                line["bank_hash"],
+                "bulk",
+                e,
+                0,
+                sig | {"n_excluded": x, "n_added": a, "bulk_size": n},
+            )
             for e, x, a, n in out[:5]
         ]
 
@@ -387,8 +395,9 @@ class Matcher:
         if npart:
             found: dict[int, str] = {}
             for fn in (fuzz.token_sort_ratio, fuzz.token_set_ratio):
-                for choice, _, idx in process.extract(npart, self.name_choices, scorer=fn, limit=10,
-                                                      score_cutoff=NAME_CUTOFF):
+                for choice, _, idx in process.extract(
+                    npart, self.name_choices, scorer=fn, limit=10, score_cutoff=NAME_CUTOFF
+                ):
                     found[idx] = choice
             for idx, choice in sorted(found.items()):
                 score = name_similarity(npart, choice)

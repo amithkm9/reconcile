@@ -24,7 +24,7 @@ from pathlib import Path
 from reconcile.allocate import exhaustive_gap, greedy
 from reconcile.audit import AuditLog
 from reconcile.candidates import Cand, Matcher
-from reconcile.decide import Thresholds, outcome
+from reconcile.decide import Thresholds, cp_lower, outcome
 from reconcile.features import candidate_features
 from reconcile.ledger import Ledger
 from reconcile.normalize import label_signature
@@ -245,30 +245,36 @@ def _decide(L, pending, results, feats, th, run_id, as_of, reviewer, audit, stat
     if reviewer is not None:
         for dec in queue:
             action, idx = reviewer.act(dec)
-            apply_decision(L, dec["bank_hash"], action, run_id, idx, actor="sim_reviewer", audit=audit)
+            apply_decision(
+                L, dec["bank_hash"], action, run_id, idx, actor="sim_reviewer", audit=audit
+            )
 
 
-GUARD_MIN_HISTORY = 200   # the guard needs a history to compare against (not active at cold start)
+GUARD_MIN_HISTORY = 200  # the guard needs a history to compare against (not active at cold start)
 GUARD_MIN_CONFIRMED = 20  # confirmed lines of a layout before it may be auto-posted
 
 
-PROBATION_MIN_REVIEWED = 30   # a new layout is human-reviewed until at least this many lines...
-PROBATION_MIN_ACCEPT = 0.97   # ...have been reviewed AND the top suggestion was right this often
+# A new layout is certified by the same rule as the auto threshold: the one-sided 95% Clopper-Pearson
+# lower bound on the top suggestion's accuracy, over the lines the guard held back, must reach 99%
+# (about 299 reviewed in a row with no rejection). A looser gate (30 lines at >= 97%) was tried and
+# released a layout that was really 91% right; see docs/decisions.md.
+PROBATION_TARGET = 0.99
 
 
 def _new_format(L: Ledger, line: dict) -> bool:
     """True if this line's label layout is not trusted for auto-posting yet.
 
-    Trusted = seen in the lettered history, or passed probation: reviewers handled enough lines
-    in that layout and accepted the system's top suggestion often enough. The guard lifts on
-    measured precision, not on a count."""
+    Trusted = seen in the lettered history, or passed probation: over the lines this guard held
+    back (lines that would otherwise have been auto-posted), the 95% lower bound on how often
+    reviewers accepted the top suggestion reaches PROBATION_TARGET. The guard lifts on the
+    measured precision of exactly the posts it would release, not on a count."""
     if sum(L.signature_counts.values()) < GUARD_MIN_HISTORY:
         return False  # cold start: nothing to compare against
     sig = label_signature(line["label"])
     if L.signature_counts.get(sig, 0) >= GUARD_MIN_CONFIRMED:
         return False
     reviewed, accepted = L.sig_review.get(sig, (0, 0))
-    return not (reviewed >= PROBATION_MIN_REVIEWED and accepted / reviewed >= PROBATION_MIN_ACCEPT)
+    return cp_lower(accepted, reviewed) < PROBATION_TARGET
 
 
 def check_balance(L: Ledger) -> dict:

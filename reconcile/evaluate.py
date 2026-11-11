@@ -103,7 +103,9 @@ class EvalRun:
     metrics: dict
 
 
-def prepare_history(data: ClientData, truth: Truth, teacher_months: int = TRAIN_MONTHS + THRESHOLD_MONTHS):
+def prepare_history(
+    data: ClientData, truth: Truth, teacher_months: int = TRAIN_MONTHS + THRESHOLD_MONTHS
+):
     """Teacher-forced pass: post the historical lettrage for the first `teacher_months` months and
     collect the candidate rows generated against that point-in-time state."""
     months = [dt.date.fromisoformat(m) for m in truth.meta["months"]]
@@ -113,8 +115,18 @@ def prepare_history(data: ClientData, truth: Truth, teacher_months: int = TRAIN_
     M = Matcher(L, data.template)
     rows: list[dict] = []
     for w in [w for w in week_ends(months[0], month_end(months[-1])) if w < until]:
-        run_week(L, M, w, scorer=None, th=None, run_id=f"hist-{w}", mode="teacher",
-                 truth=truth.as_run_truth(), collect=rows, do_reminders=False)
+        run_week(
+            L,
+            M,
+            w,
+            scorer=None,
+            th=None,
+            run_id=f"hist-{w}",
+            mode="teacher",
+            truth=truth.as_run_truth(),
+            collect=rows,
+            do_reminders=False,
+        )
     thr_start = months[TRAIN_MONTHS]
     train = [r for r in rows if r["date"] < thr_start]
     thr = [r for r in rows if thr_start <= r["date"] < test_start]
@@ -127,7 +139,9 @@ def fit_scorer(kind: str, train: list[dict], seed: int = 0):
     return GBMScorer().fit([r["features"] for r in train], [r["y"] for r in train], seed=seed)
 
 
-def _shadow_thresholds(L: Ledger, M: Matcher, truth: Truth, scorer, months, test_start, reviewer, lang):
+def _shadow_thresholds(
+    L: Ledger, M: Matcher, truth: Truth, scorer, months, test_start, reviewer, lang
+):
     """Months 8-9 as a *shadow run*: the trained model decides week by week on live state (with
     the review queue worked), and the auto threshold is chosen on what it actually decided.
 
@@ -141,12 +155,32 @@ def _shadow_thresholds(L: Ledger, M: Matcher, truth: Truth, scorer, months, test
 
     provisional = Th(auto=float("inf"), review=0.3, certified_lb=0.0, n_at_auto=0, k_at_auto=0)
     rows: list[dict] = []
-    for w in [w for w in week_ends(months[0], month_end(months[-1])) if months[TRAIN_MONTHS] <= w < test_start]:
-        run_week(L, M, w, scorer=scorer, th=provisional, run_id=f"shadow-{w}", mode="decide",
-                 truth=truth.as_run_truth(), reviewer=reviewer, lang=lang, collect=rows, do_reminders=False)
+    for w in [
+        w
+        for w in week_ends(months[0], month_end(months[-1]))
+        if months[TRAIN_MONTHS] <= w < test_start
+    ]:
+        run_week(
+            L,
+            M,
+            w,
+            scorer=scorer,
+            th=provisional,
+            run_id=f"shadow-{w}",
+            mode="decide",
+            truth=truth.as_run_truth(),
+            reviewer=reviewer,
+            lang=lang,
+            collect=rows,
+            do_reminders=False,
+        )
     scores, correct = [], []
     for h, d in L.decisions.items():
-        if d.get("run_id", "").startswith("shadow-") and d.get("top") and truth.month_index.get(h, -1) in (7, 8):
+        if (
+            d.get("run_id", "").startswith("shadow-")
+            and d.get("top")
+            and truth.month_index.get(h, -1) in (7, 8)
+        ):
             scores.append(d["top"]["score"])
             correct.append(truth.cls[h] == "ar" and d["top"]["key"] == truth.keys[h])
     th = choose_thresholds(np.array(scores), np.array(correct, dtype=bool))
@@ -154,9 +188,16 @@ def _shadow_thresholds(L: Ledger, M: Matcher, truth: Truth, scorer, months, test
     return th, rows, len(scores), int(sum(correct))
 
 
-def evaluate_client(client: str, template: Path, data_dir: Path, scorer_kind: str = "rules",
-                    reviewer_error: float = 0.0, out_dir: Path | None = Path("reports"),
-                    state_path: Path | None = None, keep_last_queue: bool = True) -> EvalRun:
+def evaluate_client(
+    client: str,
+    template: Path,
+    data_dir: Path,
+    scorer_kind: str = "rules",
+    reviewer_error: float = 0.0,
+    out_dir: Path | None = Path("reports"),
+    state_path: Path | None = None,
+    keep_last_queue: bool = True,
+) -> EvalRun:
     """Rules: months 1-9 are historical lettrage and all nine are out-of-sample for an untrained
     scorer, so its threshold uses them all. Model: months 1-7 historical lettrage for training,
     months 8-9 a shadow run for the threshold (see _shadow_thresholds). Both report months 10-12."""
@@ -166,13 +207,23 @@ def evaluate_client(client: str, template: Path, data_dir: Path, scorer_kind: st
     if scorer_kind == "rules":
         L, M, train, thr, months, test_start = prepare_history(data, truth)
         scorer = fit_scorer("rules", train)
-        s_thr, c_thr, _ = chosen_per_line(train + thr, scorer.score([r["features"] for r in train + thr]))
+        s_thr, c_thr, _ = chosen_per_line(
+            train + thr, scorer.score([r["features"] for r in train + thr])
+        )
         th = choose_thresholds(s_thr, c_thr)
-        thr_info = {"lines": int(len(s_thr)), "correct_chosen": int(c_thr.sum()), "months": "1-9 (historical lettrage)"}
+        thr_info = {
+            "lines": int(len(s_thr)),
+            "correct_chosen": int(c_thr.sum()),
+            "months": "1-9 (historical lettrage)",
+        }
     else:
-        L, M, train, _, months, test_start = prepare_history(data, truth, teacher_months=TRAIN_MONTHS)
+        L, M, train, _, months, test_start = prepare_history(
+            data, truth, teacher_months=TRAIN_MONTHS
+        )
         scorer = fit_scorer("model", train)
-        th, thr, n, k = _shadow_thresholds(L, M, truth, scorer, months, test_start, reviewer, data.language)
+        th, thr, n, k = _shadow_thresholds(
+            L, M, truth, scorer, months, test_start, reviewer, data.language
+        )
         thr_info = {"lines": n, "correct_chosen": k, "months": "8-9 (shadow run)"}
     audit = AuditLog(
         out_dir / f"audit_{client}.jsonl" if out_dir else None,
@@ -211,9 +262,12 @@ def evaluate_client(client: str, template: Path, data_dir: Path, scorer_kind: st
         from reconcile.experiments import reliability
 
         probs = scorer.display_probability([r["features"] for r in test_rows])
-        metrics["calibration_test"] = reliability(probs, [r["y"] for r in test_rows],
-                                                  out_dir / f"reliability_{client}.png",
-                                                  f"{client}: calibrated model, test months")
+        metrics["calibration_test"] = reliability(
+            probs,
+            [r["y"] for r in test_rows],
+            out_dir / f"reliability_{client}.png",
+            f"{client}: calibrated model, test months",
+        )
     run = EvalRun(client, data, truth, L, scorer, th, train, thr, test_rows, weeks, metrics)
     if out_dir:
         write_report(run, out_dir)
@@ -382,7 +436,9 @@ def compute_metrics(
         "balance_ok_all_runs": all(r["balance_ok"] for r in L.runs),
         "greedy_components_checked": sum(r.get("gap_checked", 0) for r in L.runs),
         "greedy_suboptimal": sum(r.get("gap_suboptimal", 0) for r in L.runs),
-        "auto_blocked_by_new_format_guard": sum(1 for h in test if L.decisions.get(h, {}).get("guard") == "new_format"),
+        "auto_blocked_by_new_format_guard": sum(
+            1 for h in test if L.decisions.get(h, {}).get("guard") == "new_format"
+        ),
         "stranded_lines": sum(1 for h in test if L.decisions.get(h, {}).get("stranded")),
         "errors": errors,
     }

@@ -131,7 +131,7 @@ with tab_q:
                         "open now": money(L.open(key), lang),
                     }
                 )
-            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
             if opt.get("residual"):
                 st.caption(f"Left unallocated (suspense): {money(opt['residual'], lang)}")
             st.markdown("**Why**  \n" + "  \n".join(opt.get("reasons") or ["(no rule evidence)"]))
@@ -200,7 +200,7 @@ with tab_r:
                 ]
             ),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
 with tab_log:
@@ -227,5 +227,5 @@ with tab_log:
             ]
         ].tail(20),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
