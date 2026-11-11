@@ -10,9 +10,13 @@
   "amount_weighted_precision": 1.0,
   "automation_rate": 0.776,
   "automation_rate_eur": 0.765,
-  "suggestion_recall": 0.9555,
-  "review_lines": 383,
-  "review_per_week": 27.4,
+  "suggestion_recall": 0.955,
+  "review_top1_accuracy": 0.9081,
+  "non_dd_lines": 486,
+  "non_dd_automation_rate": 0.1091,
+  "dd_share_of_ar_lines": 0.7486,
+  "review_lines": 381,
+  "review_per_week": 27.2,
   "candidate_recall_all_months": 0.9934,
   "candidate_recall_by_type": {
     "bulk_no_remit": 0.9706,
@@ -28,8 +32,8 @@
   },
   "confusion": {
     "ar->auto": 1500,
-    "ar->review": 383,
-    "ar->unapplied": 50,
+    "ar->review": 381,
+    "ar->unapplied": 52,
     "non_ar->non_ar": 36,
     "unapplied->unapplied": 12
   },
@@ -123,17 +127,18 @@
   },
   "reminders_drafted": 170,
   "reminders_held": {
-    "dd_return": 22,
+    "dd_return": 20,
     "deceased": 48,
-    "pending_review": 33,
-    "unapplied_cash": 464
+    "pending_review": 29,
+    "unapplied_cash": 467
   },
-  "reminders_delayed_by_holds": 372,
+  "reminders_delayed_by_holds": 375,
   "wrong_reminders": 0,
   "wrong_reminder_examples": [],
   "missed_reminders": 0,
+  "missed_reminder_examples": [],
   "balance_ok_all_runs": true,
-  "greedy_components_checked": 108,
+  "greedy_components_checked": 107,
   "greedy_suboptimal": 1,
   "auto_blocked_by_new_format_guard": 304,
   "stranded_lines": 0,
@@ -142,7 +147,7 @@
   "scorer": "model",
   "thresholds": {
     "auto": 0.8649847988747787,
-    "review": 0.6664406375326485,
+    "review": 0.6745788353413593,
     "certified_lb": 0.9902845714719034,
     "n_at_auto": 1216,
     "k_at_auto": 1210,
@@ -151,8 +156,8 @@
   "n_train_rows": 11954,
   "n_threshold_rows": 4204,
   "threshold_set": {
-    "lines": 1286,
-    "correct_chosen": 1270,
+    "lines": 1285,
+    "correct_chosen": 1269,
     "months": "8-9 (shadow run)"
   },
   "calibration_test": {

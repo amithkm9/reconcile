@@ -2,73 +2,76 @@
   "test_lines": 744,
   "test_ar_lines": 731,
   "test_weeks": 14,
-  "auto_lines": 426,
-  "auto_correct": 426,
-  "auto_precision": 1.0,
-  "auto_precision_lb95": 0.993,
-  "edge_precision": 1.0,
-  "amount_weighted_precision": 1.0,
-  "automation_rate": 0.5828,
-  "automation_rate_eur": 0.6868,
-  "suggestion_recall": 0.7442,
-  "review_lines": 223,
-  "review_per_week": 15.9,
-  "candidate_recall_all_months": 0.9348,
+  "auto_lines": 0,
+  "auto_correct": 0,
+  "auto_precision": null,
+  "auto_precision_lb95": 0.0,
+  "edge_precision": null,
+  "amount_weighted_precision": null,
+  "automation_rate": 0.0,
+  "automation_rate_eur": 0.0,
+  "suggestion_recall": 0.7661,
+  "review_top1_accuracy": 0.8446,
+  "non_dd_lines": 328,
+  "non_dd_automation_rate": 0.0,
+  "dd_share_of_ar_lines": 0.5513,
+  "review_lines": 664,
+  "review_per_week": 47.4,
+  "candidate_recall_all_months": 0.946,
   "candidate_recall_by_type": {
     "bulk_no_remit": 0.875,
     "bulk_remit": 0.8947,
     "dd": 1.0,
-    "dd_return": 0.0,
-    "multi_month": 0.735,
-    "one_to_one": 0.8915,
+    "dd_return": 0.9643,
+    "multi_month": 0.7456,
+    "one_to_one": 0.9051,
     "overpay": 0.9375,
-    "partial": 0.9454,
+    "partial": 0.9399,
     "split_share": 0.922
   },
   "confusion": {
-    "ar->auto": 426,
-    "ar->review": 221,
-    "ar->unapplied": 84,
+    "ar->review": 663,
+    "ar->unapplied": 68,
     "non_ar->non_ar": 6,
-    "unapplied->review": 2,
-    "unapplied->unapplied": 5
+    "unapplied->review": 1,
+    "unapplied->unapplied": 6
   },
   "by_match_type": {
     "bulk_no_remit": {
       "n": 5,
-      "automation": 0.2,
-      "auto_precision": 1.0,
-      "suggestion_recall": 0.6
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.4
     },
     "bulk_remit": {
       "n": 37,
-      "automation": 0.7838,
-      "auto_precision": 1.0,
+      "automation": 0.0,
+      "auto_precision": null,
       "suggestion_recall": 0.9189
     },
     "dd": {
       "n": 396,
-      "automation": 1.0,
-      "auto_precision": 1.0,
+      "automation": 0.0,
+      "auto_precision": null,
       "suggestion_recall": 1.0
     },
     "dd_return": {
       "n": 7,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.0
+      "suggestion_recall": 0.8571
     },
     "multi_month": {
       "n": 99,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.4141
+      "suggestion_recall": 0.4242
     },
     "one_to_one": {
       "n": 71,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.5493
+      "suggestion_recall": 0.5352
     },
     "overpay": {
       "n": 5,
@@ -86,7 +89,7 @@
       "n": 70,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.4143
+      "suggestion_recall": 0.4857
     }
   },
   "by_shift": {
@@ -94,7 +97,7 @@
       "n": 266,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.4812
+      "suggestion_recall": 0.5
     },
     "married_name": {
       "n": 20,
@@ -104,63 +107,165 @@
     },
     "none": {
       "n": 431,
-      "automation": 0.9606,
-      "auto_precision": 1.0,
-      "suggestion_recall": 0.9722
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.9838
     },
     "remit_layout": {
       "n": 14,
-      "automation": 0.8571,
-      "auto_precision": 1.0,
+      "automation": 0.0,
+      "auto_precision": null,
       "suggestion_recall": 1.0
     }
   },
-  "reminders_drafted": 18,
+  "reminders_drafted": 29,
   "reminders_held": {
-    "deceased": 22,
-    "pending_review": 14,
-    "unapplied_cash": 559
+    "dd_return": 8,
+    "deceased": 25,
+    "pending_review": 12,
+    "unapplied_cash": 715
   },
-  "reminders_delayed_by_holds": 345,
-  "wrong_reminders": 11,
+  "reminders_delayed_by_holds": 414,
+  "wrong_reminders": 17,
   "wrong_reminder_examples": [
-    "INV-02167",
-    "INV-02222",
-    "INV-02271",
-    "INV-02352",
-    "INV-02358",
-    "INV-02412",
-    "INV-02427",
-    "INV-02523",
-    "INV-02544",
-    "INV-02548"
+    {
+      "invoice_id": "INV-02626",
+      "payer": "Raymond Ward",
+      "as_of": "2025-10-12",
+      "paid_by_label": "R WARD INV-02626",
+      "paid_by_reference": "",
+      "paid_on": "2025-08-29",
+      "paid_by_type": "split_share",
+      "shift": "none",
+      "system_outcome": "review"
+    },
+    {
+      "invoice_id": "INV-02167",
+      "payer": "Medway Council",
+      "as_of": "2025-12-21",
+      "paid_by_label": "MEDWAY COUNCIL RA0",
+      "paid_by_reference": "",
+      "paid_on": "2025-08-21",
+      "paid_by_type": "bulk_remit",
+      "shift": "none",
+      "system_outcome": "review"
+    },
+    {
+      "invoice_id": "INV-02217",
+      "payer": "Medway Council",
+      "as_of": "2025-12-21",
+      "paid_by_label": "MEDWAY COUNCIL RA0",
+      "paid_by_reference": "",
+      "paid_on": "2025-08-17",
+      "paid_by_type": "bulk_remit",
+      "shift": "none",
+      "system_outcome": "unapplied"
+    },
+    {
+      "invoice_id": "INV-02222",
+      "payer": "Medway Council",
+      "as_of": "2025-12-21",
+      "paid_by_label": "MEDWAY COUNCIL RA0",
+      "paid_by_reference": "",
+      "paid_on": "2025-08-21",
+      "paid_by_type": "bulk_remit",
+      "shift": "none",
+      "system_outcome": "review"
+    },
+    {
+      "invoice_id": "INV-02240",
+      "payer": "Medway Council",
+      "as_of": "2025-12-21",
+      "paid_by_label": "MEDWAY COUNCIL RA0",
+      "paid_by_reference": "",
+      "paid_on": "2025-08-17",
+      "paid_by_type": "bulk_remit",
+      "shift": "none",
+      "system_outcome": "unapplied"
+    },
+    {
+      "invoice_id": "INV-02244",
+      "payer": "Medway Council",
+      "as_of": "2025-12-21",
+      "paid_by_label": "MEDWAY COUNCIL RA0",
+      "paid_by_reference": "",
+      "paid_on": "2025-08-17",
+      "paid_by_type": "bulk_remit",
+      "shift": "none",
+      "system_outcome": "unapplied"
+    },
+    {
+      "invoice_id": "INV-02271",
+      "payer": "Medway Council",
+      "as_of": "2025-12-21",
+      "paid_by_label": "MEDWAY COUNCIL RA0",
+      "paid_by_reference": "",
+      "paid_on": "2025-08-21",
+      "paid_by_type": "bulk_remit",
+      "shift": "none",
+      "system_outcome": "review"
+    },
+    {
+      "invoice_id": "INV-02342",
+      "payer": "Medway Council",
+      "as_of": "2025-12-21",
+      "paid_by_label": "MEDWAY COUNCIL RA0",
+      "paid_by_reference": "",
+      "paid_on": "2025-08-17",
+      "paid_by_type": "bulk_remit",
+      "shift": "none",
+      "system_outcome": "unapplied"
+    },
+    {
+      "invoice_id": "INV-02352",
+      "payer": "Medway Council",
+      "as_of": "2025-12-21",
+      "paid_by_label": "MEDWAY COUNCIL RA0",
+      "paid_by_reference": "",
+      "paid_on": "2025-08-21",
+      "paid_by_type": "bulk_remit",
+      "shift": "none",
+      "system_outcome": "review"
+    },
+    {
+      "invoice_id": "INV-02358",
+      "payer": "Medway Council",
+      "as_of": "2025-12-21",
+      "paid_by_label": "MEDWAY COUNCIL RA0",
+      "paid_by_reference": "",
+      "paid_on": "2025-08-21",
+      "paid_by_type": "bulk_remit",
+      "shift": "none",
+      "system_outcome": "review"
+    }
   ],
-  "missed_reminders": 2,
+  "missed_reminders": 0,
+  "missed_reminder_examples": [],
   "balance_ok_all_runs": true,
-  "greedy_components_checked": 96,
+  "greedy_components_checked": 110,
   "greedy_suboptimal": 2,
-  "auto_blocked_by_new_format_guard": 2,
+  "auto_blocked_by_new_format_guard": 0,
   "stranded_lines": 0,
   "errors": [],
   "client": "client3",
   "scorer": "model",
   "thresholds": {
-    "auto": 0.9857176312819512,
-    "review": 0.30845033736031147,
-    "certified_lb": 0.9901293940931903,
-    "n_at_auto": 302,
-    "k_at_auto": 302,
+    "auto": Infinity,
+    "review": 0.32009385755717135,
+    "certified_lb": 0.9897930905897511,
+    "n_at_auto": 292,
+    "k_at_auto": 292,
     "target": 0.99
   },
-  "n_train_rows": 19933,
-  "n_threshold_rows": 11053,
+  "n_train_rows": 19966,
+  "n_threshold_rows": 10975,
   "threshold_set": {
     "lines": 475,
-    "correct_chosen": 409,
+    "correct_chosen": 414,
     "months": "8-9 (shadow run)"
   },
   "calibration_test": {
-    "brier": 0.0186,
+    "brier": 0.0166,
     "bins": 10
   }
 }

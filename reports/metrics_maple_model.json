@@ -2,33 +2,36 @@
   "test_lines": 778,
   "test_ar_lines": 764,
   "test_weeks": 14,
-  "auto_lines": 465,
-  "auto_correct": 465,
-  "auto_precision": 1.0,
-  "auto_precision_lb95": 0.9936,
-  "edge_precision": 1.0,
-  "amount_weighted_precision": 1.0,
-  "automation_rate": 0.6086,
-  "automation_rate_eur": 0.7123,
-  "suggestion_recall": 0.784,
-  "review_lines": 225,
-  "review_per_week": 16.1,
-  "candidate_recall_all_months": 0.9323,
+  "auto_lines": 0,
+  "auto_correct": 0,
+  "auto_precision": null,
+  "auto_precision_lb95": 0.0,
+  "edge_precision": null,
+  "amount_weighted_precision": null,
+  "automation_rate": 0.0,
+  "automation_rate_eur": 0.0,
+  "suggestion_recall": 0.7906,
+  "review_top1_accuracy": 0.8543,
+  "non_dd_lines": 321,
+  "non_dd_automation_rate": 0.0,
+  "dd_share_of_ar_lines": 0.5798,
+  "review_lines": 708,
+  "review_per_week": 50.6,
+  "candidate_recall_all_months": 0.944,
   "candidate_recall_by_type": {
     "bulk_no_remit": 0.931,
     "bulk_remit": 0.8993,
     "dd": 0.9994,
-    "dd_return": 0.0,
+    "dd_return": 1.0,
     "multi_month": 0.7396,
-    "one_to_one": 0.9078,
-    "overpay": 0.8846,
+    "one_to_one": 0.9263,
+    "overpay": 0.8462,
     "partial": 0.8978,
     "split_share": 0.8998
   },
   "confusion": {
-    "ar->auto": 465,
-    "ar->review": 224,
-    "ar->unapplied": 75,
+    "ar->review": 707,
+    "ar->unapplied": 57,
     "non_ar->non_ar": 6,
     "unapplied->review": 1,
     "unapplied->unapplied": 7
@@ -36,33 +39,33 @@
   "by_match_type": {
     "bulk_no_remit": {
       "n": 10,
-      "automation": 0.6,
-      "auto_precision": 1.0,
+      "automation": 0.0,
+      "auto_precision": null,
       "suggestion_recall": 0.7
     },
     "bulk_remit": {
       "n": 32,
-      "automation": 0.8125,
-      "auto_precision": 1.0,
+      "automation": 0.0,
+      "auto_precision": null,
       "suggestion_recall": 0.9375
     },
     "dd": {
       "n": 433,
-      "automation": 1.0,
-      "auto_precision": 1.0,
+      "automation": 0.0,
+      "auto_precision": null,
       "suggestion_recall": 1.0
     },
     "dd_return": {
       "n": 10,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.0
+      "suggestion_recall": 0.7
     },
     "multi_month": {
       "n": 94,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.4362
+      "suggestion_recall": 0.4468
     },
     "one_to_one": {
       "n": 44,
@@ -86,7 +89,7 @@
       "n": 98,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.4796
+      "suggestion_recall": 0.4898
     }
   },
   "by_shift": {
@@ -94,65 +97,101 @@
       "n": 257,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.5214
+      "suggestion_recall": 0.537
     },
     "married_name": {
       "n": 22,
       "automation": 0.0,
       "auto_precision": null,
-      "suggestion_recall": 0.0909
+      "suggestion_recall": 0.0
     },
     "none": {
       "n": 474,
-      "automation": 0.9599,
-      "auto_precision": 1.0,
-      "suggestion_recall": 0.9705
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.9852
     },
     "remit_layout": {
       "n": 11,
-      "automation": 0.9091,
-      "auto_precision": 1.0,
+      "automation": 0.0,
+      "auto_precision": null,
       "suggestion_recall": 0.9091
     }
   },
-  "reminders_drafted": 24,
+  "reminders_drafted": 29,
   "reminders_held": {
-    "deceased": 35,
-    "pending_review": 24,
-    "unapplied_cash": 550
+    "dd_return": 9,
+    "deceased": 46,
+    "pending_review": 28,
+    "unapplied_cash": 706
   },
-  "reminders_delayed_by_holds": 355,
-  "wrong_reminders": 2,
+  "reminders_delayed_by_holds": 421,
+  "wrong_reminders": 3,
   "wrong_reminder_examples": [
-    "INV-00969",
-    "INV-01273"
+    {
+      "invoice_id": "INV-00969",
+      "payer": "Dorothy Thomas",
+      "as_of": "2025-10-05",
+      "paid_by_label": "FP D THOAMS",
+      "paid_by_reference": "",
+      "paid_on": "2025-10-01",
+      "paid_by_type": "multi_month",
+      "shift": "label_format",
+      "system_outcome": "unapplied"
+    },
+    {
+      "invoice_id": "INV-01273",
+      "payer": "Dorothy Thomas",
+      "as_of": "2025-10-05",
+      "paid_by_label": "FP D THOAMS",
+      "paid_by_reference": "",
+      "paid_on": "2025-10-01",
+      "paid_by_type": "multi_month",
+      "shift": "label_format",
+      "system_outcome": "unapplied"
+    },
+    {
+      "invoice_id": "INV-02451",
+      "payer": "Emma Cook",
+      "as_of": "2025-10-12",
+      "paid_by_label": "E COOK INV-02451",
+      "paid_by_reference": "",
+      "paid_on": "2025-09-28",
+      "paid_by_type": "split_share",
+      "shift": "none",
+      "system_outcome": "review"
+    }
   ],
-  "missed_reminders": 4,
+  "missed_reminders": 2,
+  "missed_reminder_examples": [
+    "INV-02746|FRANK KELLY@MR0028",
+    "INV-03058|PETER EDWARDS@MR0042"
+  ],
   "balance_ok_all_runs": true,
-  "greedy_components_checked": 101,
-  "greedy_suboptimal": 1,
-  "auto_blocked_by_new_format_guard": 3,
+  "greedy_components_checked": 87,
+  "greedy_suboptimal": 3,
+  "auto_blocked_by_new_format_guard": 0,
   "stranded_lines": 0,
   "errors": [],
   "client": "maple",
   "scorer": "model",
   "thresholds": {
-    "auto": 0.9829659125649227,
-    "review": 0.343156740005764,
-    "certified_lb": 0.9903828905485149,
-    "n_at_auto": 310,
-    "k_at_auto": 310,
+    "auto": Infinity,
+    "review": 0.3248145474371711,
+    "certified_lb": 0.989896363510297,
+    "n_at_auto": 295,
+    "k_at_auto": 295,
     "target": 0.99
   },
-  "n_train_rows": 25065,
-  "n_threshold_rows": 12767,
+  "n_train_rows": 25104,
+  "n_threshold_rows": 12555,
   "threshold_set": {
-    "lines": 484,
+    "lines": 486,
     "correct_chosen": 440,
     "months": "8-9 (shadow run)"
   },
   "calibration_test": {
-    "brier": 0.0126,
+    "brier": 0.0128,
     "bins": 10
   }
 }
