@@ -6,15 +6,34 @@ Each writes a markdown report (and, where useful, a PNG) to reports/.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
+import logging
 import os
 import time
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 import yaml
 
+from reconcile import llm
+from reconcile.candidates import Matcher
+from reconcile.dates import month_end, week_ends
+from reconcile.decide import Thresholds, choose_thresholds, cp_lower
+from reconcile.evaluate import evaluate_client, load_truth
+from reconcile.generate import generate_client
+from reconcile.ledger import Ledger
 from reconcile.mapping import propose_fallback, propose_llm
+from reconcile.mapping.profile import read_table
 from reconcile.mapping.template import TemplateError, load_client
+from reconcile.paths import REPORTS, ROOT, client_paths
+from reconcile.plots import fmt_pct, plot_feedback, plot_sweep
+from reconcile.review import SimReviewer
+from reconcile.scorer import GBMScorer, RulesScorer
+from reconcile.state import run_week
+
+log = logging.getLogger(__name__)
 
 ENTITY_FIELDS = {
     "invoices": [
@@ -70,10 +89,9 @@ def _truth_fields(kind: str, tspec: dict) -> dict:
 
 def _present_values(data_dir: Path, truth: dict) -> dict:
     """Category values that actually occur in the exports (per field), from the true mapping."""
-    from reconcile.mapping.profile import read_table
 
     out: dict[str, set] = {}
-    for _kind, tspec in truth.items():
+    for tspec in truth.values():
         for field in tspec.get("values") or {}:
             header = tspec["columns"].get(field)
             path = next(
@@ -126,16 +144,18 @@ def score_template(tpl: dict, truth: dict, present: dict | None = None) -> dict:
 
 
 def mapping_eval(
-    data_root: Path = Path("data"),
-    out_dir: Path = Path("reports"),
-    models=("claude-sonnet-5-5", "claude-haiku-5-5"),
+    data_root: Path = ROOT / "data",
+    out_dir: Path = REPORTS,
+    models: tuple[str, ...] | None = None,
 ) -> dict:
+    """Propose a template for every schema (deterministic mapper, and each configured model when
+    a key or cached responses exist), score it against the generator's true mapping, and write
+    reports/mapping_eval.md."""
+    models = models or llm.configured_models()
     targets = [(c, data_root / c) for c in ("azur", "maple", "client3")]
     targets += [(p.name, p) for p in sorted((data_root / "variants").glob("variant_*"))]
     results = []
-    llm_available = bool(os.environ.get("ANTHROPIC_API_KEY")) or any(
-        Path("llm_cache").glob("*.json")
-    )
+    llm_available = bool(os.environ.get("ANTHROPIC_API_KEY")) or any(llm.CACHE.glob("*.json"))
     for name, d in targets:
         truth = yaml.safe_load((d / "_truth" / "mapping.yaml").read_text(encoding="utf-8"))
         t0 = time.time()
@@ -235,19 +255,17 @@ def noise_sweep(
     levels=(0.5, 1.0, 1.5, 2.0, 3.0),
     client: str = "azur",
     scorer: str = "rules",
-    out_dir: Path = Path("reports"),
+    out_dir: Path = REPORTS,
 ) -> list[dict]:
     """Regenerate the client at k x every messiness rate (same seed) and rerun the full protocol.
     Answers: how fast does it degrade, and does precision hold while automation falls?"""
-    from reconcile.evaluate import evaluate_client
-    from reconcile.generate.__main__ import generate_client
 
     rows = []
     for k in levels:
-        d = Path("data/sweep") / f"k{k}"
+        d = ROOT / "data" / "sweep" / f"k{k}"
         generate_client(client, d, noise=k)
         m = evaluate_client(
-            client, Path(f"templates/{client}.yaml"), d / client, scorer, out_dir=None
+            client, client_paths(client).template, d / client, scorer, out_dir=None
         ).metrics
         rows.append(
             {
@@ -256,72 +274,30 @@ def noise_sweep(
                 "lb95": m["auto_precision_lb95"],
                 "automation": m["automation_rate"],
                 "suggestion_recall": m["suggestion_recall"],
+                "review_top1": m["review_top1_accuracy"],
                 "review_per_week": m["review_per_week"],
                 "wrong_reminders": m["wrong_reminders"],
                 "t_auto": m["thresholds"]["auto"],
             }
         )
-        print(rows[-1])
-    _plot_sweep(rows, out_dir / f"noise_sweep_{client}_{scorer}.png", f"{client}, {scorer} scorer")
+        log.info("%s", rows[-1])
+    plot_sweep(rows, out_dir / f"noise_sweep_{client}_{scorer}.png", f"{client}, {scorer} scorer")
     lines = [
         f"# Noise sweep: {client}, {scorer} scorer",
         "",
         "Every messiness rate (typos, missing references, partial and multi-month payments, missing statements, unknown credits...) multiplied by k; same seed; full protocol each time (thresholds re-chosen on history, reported on months 10-12).",
         "",
-        "| k | auto precision | 95% lower bound | automation | suggestion recall | review / week | wrong reminders |",
+        "| k | auto precision | 95% lower bound | automation | review: top suggestion right | review / week | wrong reminders |",
         "|---|---|---|---|---|---|---|",
     ]
-    fmt = lambda x: "n/a" if x is None else f"{100 * x:.1f}%"  # noqa: E731
     for r in rows:
         lines.append(
-            f"| {r['noise']} | {fmt(r['auto_precision'])} | {fmt(r['lb95'])} | {fmt(r['automation'])} | {fmt(r['suggestion_recall'])} | {r['review_per_week']} | {r['wrong_reminders']} |"
+            f"| {r['noise']} | {fmt_pct(r['auto_precision'])} | {fmt_pct(r['lb95'])} | {fmt_pct(r['automation'])} | {fmt_pct(r['review_top1'])} | {r['review_per_week']} | {r['wrong_reminders']} |"
         )
     (out_dir / f"noise_sweep_{client}_{scorer}.md").write_text(
         "\n".join(lines) + "\n", encoding="utf-8"
     )
     return rows
-
-
-def _plot_sweep(rows: list[dict], path: Path, title: str) -> None:
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    k = [r["noise"] for r in rows]
-    fig, ax = plt.subplots(figsize=(6.4, 3.6), dpi=150)
-    ax.plot(
-        k,
-        [100 * (r["auto_precision"] or 0) for r in rows],
-        marker="o",
-        color="#1f5f8b",
-        label="auto precision",
-    )
-    ax.plot(
-        k,
-        [100 * (r["automation"] or 0) for r in rows],
-        marker="s",
-        color="#c46b2b",
-        label="automation rate",
-    )
-    ax.plot(
-        k,
-        [100 * (r["suggestion_recall"] or 0) for r in rows],
-        marker="^",
-        color="#5b8c5a",
-        label="suggestion recall",
-    )
-    ax.axhline(99, color="#888", lw=0.8, ls="--")
-    ax.text(k[-1], 99.3, "99% target", ha="right", va="bottom", fontsize=7, color="#666")
-    ax.set_xlabel("messiness multiplier k (1 = default rates)")
-    ax.set_ylabel("% (test months 10-12)")
-    ax.set_ylim(0, 102)
-    ax.set_title(f"Noise sweep: {title}", fontsize=10)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.legend(frameon=False, fontsize=8, loc="lower left")
-    fig.tight_layout()
-    fig.savefig(path)
-    plt.close(fig)
 
 
 # ---------------- feedback loop ----------------
@@ -331,30 +307,20 @@ def feedback_loop(
     client: str = "azur",
     error_rate: float = 0.03,
     retrain_every: int = 4,
-    out_dir: Path = Path("reports"),
+    out_dir: Path = REPORTS,
 ) -> list[dict]:
     """Cold start, no historical lettrage: hand-tuned rules with a conservative auto threshold, a
     simulated reviewer (3% error) works the queue each week, and every `retrain_every` weeks a
-    model is retrained on the review labels accumulated so far. Tracks live automation/precision
-    per 4-week window against the number of labels.
+    model is retrained on the review labels accumulated so far. Reports live automation and
+    precision per calendar month of bank lines, with the labels collected so far.
 
     Caveat: review labels are a biased sample (only what reached the queue), and the threshold is
     chosen on the most recent labels from that same biased stream."""
-    import numpy as np
 
-    from reconcile.candidates import Matcher
-    from reconcile.dates import month_end, week_ends
-    from reconcile.decide import Thresholds, choose_thresholds, cp_lower
-    from reconcile.evaluate import load_truth
-    from reconcile.ledger import Ledger
-    from reconcile.review import SimReviewer
-    from reconcile.scorer import GBMScorer, RulesScorer
-    from reconcile.state import run_week
-
-    d = Path(f"data/{client}")
-    data = load_client(Path(f"templates/{client}.yaml"), d)
+    d = client_paths(client).data
+    data = load_client(client_paths(client).template, d)
     truth = load_truth(d)
-    months = [__import__("datetime").date.fromisoformat(m) for m in truth.meta["months"]]
+    months = [dt.date.fromisoformat(m) for m in truth.meta["months"]]
     L = Ledger(data)
     M = Matcher(L, data.template)
     reviewer = SimReviewer(truth.keys, error_rate, seed=1)
@@ -399,7 +365,7 @@ def feedback_loop(
     for h in L.decisions:
         if truth.cls.get(h) == "ar":
             by_month.setdefault(str(L.lines[h]["date"])[:7], []).append(h)
-    curve = []
+    curve: list[dict[str, Any]] = []
     for m in sorted(by_month):
         hs = by_month[m]
         auto = [h for h in hs if L.decisions[h].get("system_outcome") == "auto"]
@@ -416,8 +382,8 @@ def feedback_loop(
                 "guard": st.get("guard", 0),
             }
         )
-        print(curve[-1])
-    _plot_feedback(curve, out_dir / f"feedback_{client}.png")
+        log.info("%s", curve[-1])
+    plot_feedback(curve, out_dir / f"feedback_{client}.png")
     lines = [
         f"# Feedback loop: {client}, cold start, simulated reviewer ({100 * error_rate:.0f}% error)",
         "",
@@ -429,103 +395,35 @@ def feedback_loop(
         "| month | labels so far | scorer in use | automation | auto precision | 95% lower bound | held by format guard |",
         "|---|---|---|---|---|---|---|",
     ]
-    fmt = lambda x: "n/a" if x is None else f"{100 * x:.1f}%"  # noqa: E731
     for r in curve:
         lines.append(
-            f"| {r['week']} | {r['labels']} | {r['scorer']} | {fmt(r['automation'])} | {fmt(r['auto_precision'])} | {fmt(r['lb95'])} | {r['guard']} |"
+            f"| {r['week']} | {r['labels']} | {r['scorer']} | {fmt_pct(r['automation'])} | {fmt_pct(r['auto_precision'])} | {fmt_pct(r['lb95'])} | {r['guard']} |"
         )
     (out_dir / f"feedback_{client}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return curve
 
 
-def _plot_feedback(curve: list[dict], path: Path, shift_month: str | None = "2025-10") -> None:
-    import datetime as dt
-
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    x = [dt.date.fromisoformat(r["week"] + "-15") for r in curve]
-    fig, ax = plt.subplots(figsize=(7.2, 3.8), dpi=150)
-    ax.plot(
-        x,
-        [100 * r["automation"] for r in curve],
-        marker="s",
-        color="#c46b2b",
-        label="automation rate",
-    )
-    ax.plot(
-        x,
-        [100 * (r["auto_precision"] or 0) for r in curve],
-        marker="o",
-        color="#1f5f8b",
-        label="auto precision",
-    )
-    if shift_month:
-        sx = dt.date.fromisoformat(shift_month + "-01")
-        ax.axvline(sx, color="#999", lw=0.8, ls="--")
-        ax.text(sx, 8, " bank changes its\n transfer label format", fontsize=7, color="#444")
-    ax.set_ylabel("% of AR lines (by month)")
-    ax.set_ylim(0, 105)
-    ax.set_title("Cold start, a year of weekly runs with a simulated reviewer", fontsize=10)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.legend(frameon=False, fontsize=8, loc="center left")
-    fig.autofmt_xdate()
-    fig.tight_layout()
-    fig.savefig(path)
-    plt.close(fig)
+def _parse_pct(v: str) -> float | None:
+    return None if v == "n/a" else float(v.rstrip("%")) / 100
 
 
-def replot_feedback(client: str = "azur", out_dir: Path = Path("reports")) -> None:
+def replot_feedback(client: str = "azur", out_dir: Path = REPORTS) -> None:
     """Rebuild the feedback plot from its markdown table (the experiment takes minutes)."""
     curve = []
     for line in (out_dir / f"feedback_{client}.md").read_text().splitlines():
         cells = [c.strip() for c in line.strip("|").split("|")]
         if len(cells) == 7 and cells[0][:2] == "20":
-            pct = lambda v: None if v == "n/a" else float(v.rstrip("%")) / 100  # noqa: E731
             curve.append(
                 {
                     "week": cells[0],
                     "labels": int(cells[1]),
                     "scorer": cells[2],
-                    "automation": pct(cells[3]),
-                    "auto_precision": pct(cells[4]),
+                    "automation": _parse_pct(cells[3]),
+                    "auto_precision": _parse_pct(cells[4]),
                     "guard": int(cells[6]),
                 }
             )
-    _plot_feedback(curve, out_dir / f"feedback_{client}.png")
-
-
-def reliability(scores, y, path: Path, title: str) -> dict:
-    """Reliability diagram + Brier score for displayed (calibrated) probabilities."""
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    import numpy as np
-
-    scores, y = np.asarray(scores), np.asarray(y)
-    bins = np.linspace(0, 1, 11)
-    idx = np.clip(np.digitize(scores, bins) - 1, 0, 9)
-    xs, ys, ns = [], [], []
-    for b in range(10):
-        m = idx == b
-        if m.sum() >= 20:
-            xs.append(scores[m].mean())
-            ys.append(y[m].mean())
-            ns.append(int(m.sum()))
-    fig, ax = plt.subplots(figsize=(3.8, 3.6), dpi=150)
-    ax.plot([0, 1], [0, 1], color="#bbb", lw=0.8, ls="--")
-    ax.plot(xs, ys, marker="o", color="#1f5f8b")
-    ax.set_xlabel("displayed probability")
-    ax.set_ylabel("observed share correct")
-    ax.set_title(title, fontsize=9)
-    ax.spines[["top", "right"]].set_visible(False)
-    fig.tight_layout()
-    fig.savefig(path)
-    plt.close(fig)
-    return {"brier": round(float(np.mean((scores - y) ** 2)), 4), "bins": len(xs)}
+    plot_feedback(curve, out_dir / f"feedback_{client}.png")
 
 
 def main() -> None:
@@ -534,9 +432,10 @@ def main() -> None:
     ap.add_argument("--client", default="azur")
     ap.add_argument("--scorer", default="rules")
     a = ap.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     if a.what == "mapping":
         mapping_eval()
-        print(Path("reports/mapping_eval.md").read_text())
+        print((REPORTS / "mapping_eval.md").read_text())
     elif a.what == "sweep":
         noise_sweep(client=a.client, scorer=a.scorer)
     elif a.what == "replot":
