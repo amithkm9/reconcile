@@ -29,8 +29,10 @@ from reconcile.dates import month_end, week_ends
 from reconcile.decide import Thresholds, choose_thresholds, cp_lower
 from reconcile.ledger import Ledger
 from reconcile.mapping.template import ClientData, load_client
+from reconcile.paths import REPORTS
+from reconcile.plots import fmt_pct, reliability
 from reconcile.review import SimReviewer
-from reconcile.scorer import GBMScorer, RulesScorer
+from reconcile.scorer import GBMScorer, RulesScorer, Scorer
 from reconcile.state import run_week, save_state
 
 TRAIN_MONTHS, THRESHOLD_MONTHS = 7, 2
@@ -45,7 +47,6 @@ class Truth:
     shift_tag: dict
     month_index: dict
     date: dict
-    amount: dict
     meta: dict
 
     def as_run_truth(self) -> dict:
@@ -71,7 +72,6 @@ def load_truth(data_dir: Path) -> Truth:
         shift_tag=dict(zip(h, t.shift_tag, strict=True)),
         month_index=dict(zip(h, t.month_index.astype(int), strict=True)),
         date={k: dt.date.fromisoformat(d) for k, d in zip(h, t.date, strict=True)},
-        amount=dict(zip(h, t.amount_cents.astype(int), strict=True)),
         meta=meta,
     )
 
@@ -91,15 +91,9 @@ def chosen_per_line(
 @dataclass
 class EvalRun:
     client: str
-    data: ClientData
-    truth: Truth
     ledger: Ledger
-    scorer: object
+    scorer: Scorer
     thresholds: Thresholds
-    train_rows: list
-    thr_rows: list
-    test_rows: list
-    test_weeks: list
     metrics: dict
 
 
@@ -133,10 +127,10 @@ def prepare_history(
     return L, M, train, thr, months, test_start
 
 
-def fit_scorer(kind: str, train: list[dict], seed: int = 0):
+def fit_scorer(kind: str, train: list[dict]) -> Scorer:
     if kind == "rules":
         return RulesScorer()
-    return GBMScorer().fit([r["features"] for r in train], [r["y"] for r in train], seed=seed)
+    return GBMScorer().fit([r["features"] for r in train], [r["y"] for r in train])
 
 
 def _shadow_thresholds(
@@ -151,9 +145,9 @@ def _shadow_thresholds(
     that train/serve skew in; thresholding on teacher-forced rows hid it (98.2% on test for a
     threshold that certified 99.0%).
     """
-    from reconcile.decide import Thresholds as Th
-
-    provisional = Th(auto=float("inf"), review=0.3, certified_lb=0.0, n_at_auto=0, k_at_auto=0)
+    provisional = Thresholds(
+        auto=float("inf"), review=0.3, certified_lb=0.0, n_at_auto=0, k_at_auto=0
+    )
     rows: list[dict] = []
     for w in [
         w
@@ -179,6 +173,7 @@ def _shadow_thresholds(
         if (
             d.get("run_id", "").startswith("shadow-")
             and d.get("top")
+            and d.get("n_valid", 1) <= 1  # never auto-posted, so not part of what is certified
             and truth.month_index.get(h, -1) in (7, 8)
         ):
             scores.append(d["top"]["score"])
@@ -194,9 +189,8 @@ def evaluate_client(
     data_dir: Path,
     scorer_kind: str = "rules",
     reviewer_error: float = 0.0,
-    out_dir: Path | None = Path("reports"),
+    out_dir: Path | None = REPORTS,
     state_path: Path | None = None,
-    keep_last_queue: bool = True,
 ) -> EvalRun:
     """Rules: months 1-9 are historical lettrage and all nine are out-of-sample for an untrained
     scorer, so its threshold uses them all. Model: months 1-7 historical lettrage for training,
@@ -207,12 +201,15 @@ def evaluate_client(
     if scorer_kind == "rules":
         L, M, train, thr, months, test_start = prepare_history(data, truth)
         scorer = fit_scorer("rules", train)
-        s_thr, c_thr, _ = chosen_per_line(
+        s_all, c_all, chosen = chosen_per_line(
             train + thr, scorer.score([r["features"] for r in train + thr])
         )
+        # certify on the lines the rule could release: an ambiguous line is never auto-posted
+        eligible = np.array([r["features"]["n_valid"] <= 1 for r in chosen], dtype=bool)
+        s_thr, c_thr = s_all[eligible], c_all[eligible]
         th = choose_thresholds(s_thr, c_thr)
         thr_info = {
-            "lines": int(len(s_thr)),
+            "lines": len(s_thr),
             "correct_chosen": int(c_thr.sum()),
             "months": "1-9 (historical lettrage)",
         }
@@ -244,12 +241,13 @@ def evaluate_client(
             run_id=f"run-{w}",
             mode="decide",
             truth=truth.as_run_truth(),
-            reviewer=None if (last and keep_last_queue) else reviewer,
+            # the last week's queue is left open, as a live system would have it
+            reviewer=None if last else reviewer,
             audit=audit,
             lang=data.language,
             collect=test_rows,
         )
-    metrics = compute_metrics(L, truth, th, test_start, train + thr, test_rows, weeks)
+    metrics = compute_metrics(L, truth, test_start, train + thr, test_rows, weeks)
     metrics |= {
         "client": client,
         "scorer": scorer.name,
@@ -259,8 +257,6 @@ def evaluate_client(
         "threshold_set": thr_info,
     }
     if isinstance(scorer, GBMScorer) and out_dir and test_rows:
-        from reconcile.experiments import reliability
-
         probs = scorer.display_probability([r["features"] for r in test_rows])
         metrics["calibration_test"] = reliability(
             probs,
@@ -268,23 +264,14 @@ def evaluate_client(
             out_dir / f"reliability_{client}.png",
             f"{client}: calibrated model, test months",
         )
-    run = EvalRun(client, data, truth, L, scorer, th, train, thr, test_rows, weeks, metrics)
+    run = EvalRun(client, L, scorer, th, metrics)
     if out_dir:
         write_report(run, out_dir)
     if state_path:
-        save_state(
-            L,
-            state_path,
-            {
-                "client": client,
-                "scorer": scorer.name,
-                "thresholds": th.as_dict(),
-                "aliases": [[a, sorted(p)] for a, p in L.aliases.items()],
-                "sig_review": dict(L.sig_review),
-            },
-        )
+        meta = {"client": client, "scorer": scorer.name, "thresholds": th.as_dict()}
         if isinstance(scorer, GBMScorer):
-            scorer.save(state_path.with_suffix(".model.pkl"))
+            meta["model_sha256"] = scorer.save(state_path.with_suffix(".model.pkl"))
+        save_state(L, state_path, meta)
     return run
 
 
@@ -296,7 +283,7 @@ def _rate(a: int, b: int) -> float | None:
 
 
 def compute_metrics(
-    L: Ledger, truth: Truth, th: Thresholds, test_start: dt.date, hist_rows, test_rows, weeks
+    L: Ledger, truth: Truth, test_start: dt.date, hist_rows: list, test_rows: list, weeks: list
 ) -> dict:
     test = [h for h in L.lines if truth.month_index.get(h, -1) >= TRAIN_MONTHS + THRESHOLD_MONTHS]
     ar = [h for h in test if truth.cls[h] == "ar"]
@@ -306,8 +293,7 @@ def compute_metrics(
         top = d.get("top") or {}
         per[h] = {
             "out": d.get("system_outcome", d.get("outcome", "undecided")),
-            "key": top.get("key"),
-            "res": d.get("resolution"),
+            "key": top.get("key") or frozenset(),
         }
     auto = [h for h in test if per[h]["out"] == "auto"]
     auto_ok = [h for h in auto if truth.cls[h] == "ar" and per[h]["key"] == truth.keys[h]]
@@ -318,6 +304,10 @@ def compute_metrics(
         h for h in ar if per[h]["key"] == truth.keys[h] and per[h]["out"] in ("auto", "review")
     ]
     review = [h for h in test if per[h]["out"] == "review"]
+    review_ar = [h for h in review if truth.cls[h] == "ar"]
+    review_top_ok = [h for h in review_ar if per[h]["key"] == truth.keys[h]]
+    # direct debits match on the mandate reference and are the easy part; report the rest apart
+    non_dd = [h for h in ar if truth.match_type[h] not in ("dd", "dd_return")]
     # candidate recall: is the true allocation among the candidates at all?
     in_cands_hist = defaultdict(int)
     for r in hist_rows:
@@ -354,27 +344,31 @@ def compute_metrics(
     confusion = Counter((truth.cls[h], per[h]["out"]) for h in test)
     # reminders
     rem_test = [r for r in L.reminders if r["as_of"] >= test_start]
-    paid_by = _truth_paid_by(truth)
-    net = defaultdict(int)
-    for s in L.shares.values():
-        net[s.invoice_id] += s.cents
+    paid_by = _truth_paid_by_share(truth)
+
+    def unpaid(key: str, as_of: dt.date) -> bool:
+        return (
+            _paid_as_of(paid_by.get(key, []), as_of) < L.shares[key].cents - SETTLE_TOLERANCE_CENTS
+        )
+
     wrong = [
-        r
-        for r in rem_test
-        if r["status"] == "drafted"
-        and _paid_as_of(paid_by.get(r["invoice_id"], []), r["as_of"])
-        >= net[r["invoice_id"]] - SETTLE_TOLERANCE_CENTS
+        r for r in rem_test if r["status"] == "drafted" and not unpaid(r["share_key"], r["as_of"])
     ]
     last = weeks[-1]
-    reminded = {r["invoice_id"] for r in rem_test}
+    reminded = {r["share_key"] for r in rem_test}
     missed = [
-        inv
-        for inv, shares in L.by_invoice.items()
-        if shares[0].due_date + dt.timedelta(days=15) < last - dt.timedelta(days=28)
-        and shares[0].due_date >= test_start - dt.timedelta(days=60)
-        and net[inv] - _paid_as_of(paid_by.get(inv, []), last) > SETTLE_TOLERANCE_CENTS
-        and inv not in reminded
+        s.key
+        for s in L.shares.values()
+        if s.due_date + dt.timedelta(days=15) < last - dt.timedelta(days=28)
+        and s.due_date >= test_start - dt.timedelta(days=60)
+        and unpaid(s.key, last)
+        and s.key not in reminded
     ]
+    paying_lines: dict[str, list[str]] = defaultdict(list)
+    for h, edges in truth.share_edges.items():
+        for k, c in edges:
+            if c > 0:
+                paying_lines[k].append(h)
     errors = []
     for h in auto:
         if per[h]["key"] != truth.keys[h]:
@@ -405,6 +399,10 @@ def compute_metrics(
         "automation_rate": _rate(len([h for h in auto if truth.cls[h] == "ar"]), len(ar)),
         "automation_rate_eur": _rate(amt([h for h in auto if truth.cls[h] == "ar"]), amt(ar)),
         "suggestion_recall": _rate(len(sugg_ok), len(ar)),
+        "review_top1_accuracy": _rate(len(review_top_ok), len(review_ar)),
+        "non_dd_lines": len(non_dd),
+        "non_dd_automation_rate": _rate(sum(per[h]["out"] == "auto" for h in non_dd), len(non_dd)),
+        "dd_share_of_ar_lines": _rate(len(ar) - len(non_dd), len(ar)),
         "review_lines": len(review),
         "review_per_week": round(len(review) / n_weeks, 1),
         "candidate_recall_all_months": _rate(
@@ -415,24 +413,26 @@ def compute_metrics(
         "by_match_type": breakdown(lambda h: truth.match_type[h]),
         "by_shift": breakdown(lambda h: truth.shift_tag[h] or "none"),
         "reminders_drafted": sum(r["status"] == "drafted" for r in rem_test),
-        # distinct invoices: a held invoice is re-checked (and counted) every week otherwise
+        # distinct payer shares: a held share is re-checked (and counted) every week otherwise
         "reminders_held": {
-            reason: len({r["invoice_id"] for r in rem_test if r["hold_reason"] == reason})
+            reason: len({r["share_key"] for r in rem_test if r["hold_reason"] == reason})
             for reason in sorted({r["hold_reason"] for r in rem_test if r["hold_reason"]})
         },
-        # the price of the safety holds: invoices really unpaid whose reminder a hold delayed
+        # the price of the safety holds: shares really unpaid whose reminder a hold delayed
         "reminders_delayed_by_holds": len(
             {
-                r["invoice_id"]
+                r["share_key"]
                 for r in rem_test
                 if r["hold_reason"] in ("unapplied_cash", "pending_review")
-                and _paid_as_of(paid_by.get(r["invoice_id"], []), r["as_of"])
-                < net[r["invoice_id"]] - SETTLE_TOLERANCE_CENTS
+                and unpaid(r["share_key"], r["as_of"])
             }
         ),
         "wrong_reminders": len(wrong),
-        "wrong_reminder_examples": [r["invoice_id"] for r in wrong[:10]],
+        "wrong_reminder_examples": [
+            _wrong_reminder_row(r, L, truth, paying_lines) for r in wrong[:10]
+        ],
         "missed_reminders": len(missed),
+        "missed_reminder_examples": missed[:10],
         "balance_ok_all_runs": all(r["balance_ok"] for r in L.runs),
         "greedy_components_checked": sum(r.get("gap_checked", 0) for r in L.runs),
         "greedy_suboptimal": sum(r.get("gap_suboptimal", 0) for r in L.runs),
@@ -444,12 +444,30 @@ def compute_metrics(
     }
 
 
-def _truth_paid_by(truth: Truth) -> dict[str, list[tuple[dt.date, int]]]:
+def _truth_paid_by_share(truth: Truth) -> dict[str, list[tuple[dt.date, int]]]:
     out: dict[str, list] = defaultdict(list)
-    for h, key in truth.keys.items():
-        for inv, c in key:
-            out[inv].append((truth.date[h], c))
+    for h, edges in truth.share_edges.items():
+        for key, c in edges:
+            out[key].append((truth.date[h], c))
     return out
+
+
+def _wrong_reminder_row(r: dict, L: Ledger, truth: Truth, paying_lines: dict) -> dict:
+    """A wrong reminder with the bank line that had in fact paid it, for the error analysis."""
+    before = [h for h in paying_lines.get(r["share_key"], []) if truth.date[h] <= r["as_of"]]
+    h = max(before, key=lambda x: truth.date[x]) if before else None
+    ln = L.lines.get(h, {}) if h else {}
+    return {
+        "invoice_id": r["invoice_id"],
+        "payer": r["payer_name"],
+        "as_of": r["as_of"].isoformat(),
+        "paid_by_label": ln.get("label", "(line not in the exports yet)"),
+        "paid_by_reference": ln.get("reference", ""),
+        "paid_on": truth.date[h].isoformat() if h else "",
+        "paid_by_type": truth.match_type.get(h, ""),
+        "shift": truth.shift_tag.get(h, "") or "none",
+        "system_outcome": L.decisions.get(h, {}).get("outcome", "not decided") if h else "",
+    }
 
 
 def _paid_as_of(events: list[tuple[dt.date, int]], as_of: dt.date) -> int:
@@ -457,10 +475,6 @@ def _paid_as_of(events: list[tuple[dt.date, int]], as_of: dt.date) -> int:
 
 
 # ---------------- report ----------------
-
-
-def _pct(x) -> str:
-    return "n/a" if x is None else f"{100 * x:.1f}%"
 
 
 def write_report(run: EvalRun, out_dir: Path) -> Path:
@@ -480,23 +494,29 @@ def write_report(run: EvalRun, out_dir: Path) -> Path:
         "|---|---|",
         f"| Test bank lines (AR lines) | {m['test_lines']} ({m['test_ar_lines']}) |",
         f"| Auto-matched lines | {m['auto_lines']} |",
-        f"| Auto precision (exact allocation) | {_pct(m['auto_precision'])} |",
-        f"| 95% lower bound on auto precision (Clopper-Pearson, n={m['auto_lines']}) | {_pct(m['auto_precision_lb95'])} |",
-        f"| Edge precision / amount-weighted precision | {_pct(m['edge_precision'])} / {_pct(m['amount_weighted_precision'])} |",
-        f"| Automation rate (count / EUR) | {_pct(m['automation_rate'])} / {_pct(m['automation_rate_eur'])} |",
-        f"| Suggestion recall (auto + correct top review suggestion) | {_pct(m['suggestion_recall'])} |",
+        f"| Auto precision (exact allocation) | {fmt_pct(m['auto_precision'])} |",
+        f"| 95% lower bound on auto precision (Clopper-Pearson, n={m['auto_lines']}) | {fmt_pct(m['auto_precision_lb95'])} |",
+        f"| Edge precision / amount-weighted precision | {fmt_pct(m['edge_precision'])} / {fmt_pct(m['amount_weighted_precision'])} |",
+        f"| Automation rate (count / EUR) | {fmt_pct(m['automation_rate'])} / {fmt_pct(m['automation_rate_eur'])} |",
+        f"| Automation excluding direct debits ({m['non_dd_lines']} lines; DD are {fmt_pct(m['dd_share_of_ar_lines'])} of AR lines) | {fmt_pct(m['non_dd_automation_rate'])} |",
+        f"| Review queue: top suggestion is the right allocation | {fmt_pct(m['review_top1_accuracy'])} |",
+        f"| Suggestion recall (auto-posted correctly, or right answer on top in review) | {fmt_pct(m['suggestion_recall'])} |",
         f"| Review queue | {m['review_lines']} lines, {m['review_per_week']} / week |",
-        f"| Wrong reminders (drafted for an invoice already paid) | {m['wrong_reminders']} |",
-        f"| Missed reminders (overdue, unpaid, never drafted or held) | {m['missed_reminders']} |",
-        f"| Reminder drafts / invoices held, by reason | {m['reminders_drafted']} / {m['reminders_held']} |",
-        f"| Reminders delayed by a safety hold although the invoice was really unpaid | {m['reminders_delayed_by_holds']} |",
+        f"| Wrong reminders (drafted for a payer share already paid) | {m['wrong_reminders']} |",
+        f"| Missed reminders (payer share overdue and unpaid, never drafted or held) | {m['missed_reminders']} |",
+        f"| Reminder drafts / payer shares held, by reason | {m['reminders_drafted']} / {m['reminders_held']} |",
+        f"| Reminders delayed by a safety hold although the share was really unpaid | {m['reminders_delayed_by_holds']} |",
         f"| Auto-posts held back by the new-label-format guard | {m['auto_blocked_by_new_format_guard']} |",
         f"| Money balances after every weekly run | {m['balance_ok_all_runs']} |",
-        f"| Candidate recall (truth among candidates, all months) | {_pct(m['candidate_recall_all_months'])} |",
+        f"| Candidate recall (truth among candidates, all months) | {fmt_pct(m['candidate_recall_all_months'])} |",
         "",
         f"## Thresholds (chosen on months {m['threshold_set']['months']} only; never on test months)",
         "",
-        f"- auto >= {th.auto:.4f}: CP lower bound {_pct(th.certified_lb)} on {th.n_at_auto} chosen candidates ({th.k_at_auto} correct)",
+        (
+            f"- auto >= {th.auto:.4f}: CP lower bound {fmt_pct(th.certified_lb)} on {th.n_at_auto} chosen candidates ({th.k_at_auto} correct)"
+            if th.auto != float("inf")
+            else f"- **nothing certified, so nothing is auto-posted.** The best cut reached a lower bound of {100 * th.certified_lb:.2f}% on its top {th.n_at_auto} lines ({th.k_at_auto} correct), below the {100 * th.target:.0f}% target"
+        ),
         f"- review >= {th.review:.4f}",
         f"- threshold-selection set: {m['threshold_set']['lines']} lines; training rows: {m['n_train_rows']}",
         "",
@@ -507,7 +527,7 @@ def write_report(run: EvalRun, out_dir: Path) -> Path:
     ]
     for k, v in m["by_match_type"].items():
         lines.append(
-            f"| {k} | {v['n']} | {_pct(v['automation'])} | {_pct(v['auto_precision'])} | {_pct(v['suggestion_recall'])} | {_pct(m['candidate_recall_by_type'].get(k))} |"
+            f"| {k} | {v['n']} | {fmt_pct(v['automation'])} | {fmt_pct(v['auto_precision'])} | {fmt_pct(v['suggestion_recall'])} | {fmt_pct(m['candidate_recall_by_type'].get(k))} |"
         )
     lines += [
         "",
@@ -518,7 +538,7 @@ def write_report(run: EvalRun, out_dir: Path) -> Path:
     ]
     for k, v in m["by_shift"].items():
         lines.append(
-            f"| {k} | {v['n']} | {_pct(v['automation'])} | {_pct(v['auto_precision'])} | {_pct(v['suggestion_recall'])} |"
+            f"| {k} | {v['n']} | {fmt_pct(v['automation'])} | {fmt_pct(v['auto_precision'])} | {fmt_pct(v['suggestion_recall'])} |"
         )
     lines += [
         "",
@@ -546,6 +566,22 @@ def write_report(run: EvalRun, out_dir: Path) -> Path:
         for e in m["errors"]:
             lines.append(
                 f"| {e['date']} | {e['label']} | {e['reference']} | {e['amount']:.2f} | {e['truth_type']} | {e['shift'] or '-'} | {e['predicted']} | {e['truth']} |"
+            )
+    else:
+        lines.append("None.")
+    lines += [
+        "",
+        f"## Every wrong reminder on the test set ({m['wrong_reminders']}), with the line that had paid it",
+        "",
+    ]
+    if m["wrong_reminder_examples"]:
+        lines += [
+            "| drafted on | invoice | payer | paid on | paying bank line | reference | type | shift | system outcome for that line |",
+            "|---|---|---|---|---|---|---|---|---|",
+        ]
+        for w in m["wrong_reminder_examples"]:
+            lines.append(
+                f"| {w['as_of']} | {w['invoice_id']} | {w['payer']} | {w['paid_on']} | {w['paid_by_label']} | {w['paid_by_reference'] or '-'} | {w['paid_by_type']} | {w['shift']} | {w['system_outcome']} |"
             )
     else:
         lines.append("None.")
