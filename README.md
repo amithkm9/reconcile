@@ -1,226 +1,200 @@
 # Reconcile
 
-Bank-to-invoice matching ("lettrage") and safe dunning for care-home groups: French EHPAD and UK care homes. A new client is onboarded from their raw exports with a YAML template, not code.
+Reconcile reads a care home's weekly bank export and its invoice list, and works out which payment settles which resident's invoice. It posts only the matches it can prove. Everything else goes to a clerk, with a suggested answer and the evidence for it. It drafts payment reminders only when no unexplained money could belong to that family.
 
-**Result.** On three synthetic clients' held-out test quarters, every bank line the system posted on its own was posted correctly. That is 2,320 auto-posts, 0 wrong, with a 95% lower bound of 99.2–99.8% per client. It automated 54–76% of lines (rules scorer) and put the rest in a review queue with the right answer on top 81–92% of the time. Reminders went out for an already-paid invoice 1–2 times per client per quarter. All three clients ran on the same code; the only per-client artefact is a machine-proposed template.
+It is built for French EHPAD groups. A UK client and a client with a scrambled export format are included to show that onboarding a new export format is a configuration file, not code.
 
-Everything here runs on synthetic data with exact ground truth. Nothing has touched a real client's books. See [what that does and doesn't prove](#limitations).
+> **Status:** a work sample on synthetic data with an exact answer key. It has not run on real books.
 
-## The problem
+![Review queue: one bank line, the suggested invoice, and the reasons](docs/img/review_queue.png)
 
-An EHPAD invoices each resident monthly, but the money arrives from many places:
-- the resident's direct debit;
-- a daughter's bank transfer under her married name, with "PENSION FEV" as the only reference;
-- a département paying aid for 40 residents in one transfer, with a statement that arrives a week later;
-- a guardian association paying for several residents at once.
+## Result
 
-A finance clerk matches each bank line to invoice shares by hand, every week. The expensive mistake is not a slow match. It is posting a payment to the wrong family, or sending a reminder to a family that has already paid.
+On a held-out quarter for three simulated care-home groups, the system auto-posted **2,319 bank lines, and every one was exactly right**: a 95% lower bound of 99.2–99.8% precision per client.
 
-So the design goal is **never post a wrong match on its own, and never chase a paid invoice**. Automation is whatever is left after that constraint.
+Two facts belong next to that number:
+- **Most of those are direct debits.** They are 55.1–74.9% of the receivable lines in this simulation (an assumed mix), and matching them by mandate reference is the easy part.
+- **Everything else is mostly reviewed.** For family transfers, partial payments and bulk payments, the system auto-posts only 0.3–6.2%. It queues the rest for a clerk, with the right answer as the first suggestion 59–69% of the time.
 
-## Results (test months 10–12, decided week by week)
+Reminders: 1–2 of the 136–255 drafts per client were for a share already paid, and no overdue unpaid share was missed.
 
-Every number below is copied from `reports/eval_<client>_<scorer>.md` and `reports/metrics_*.json`.
+The value is less in the automation rate than in the safety around it:
+- nothing is posted unless certified;
+- an ambiguous payment is never guessed;
+- a family that may have paid is not chased;
+- every euro is accounted for after every run;
+- a new client is onboarded from its own export files with a YAML template.
 
-| | Azur (FR, 600 residents) | | Maple (UK, 300) | | Client 3 (UK, perturbed schema) | |
-|---|---|---|---|---|---|---|
-| | **rules** | model | **rules** | model | **rules** | model |
-| Auto-posts / wrong | 1473 / 0 | 1500 / 0 | 453 / 0 | 465 / 0 | 394 / 0 | 426 / 0 |
-| Auto precision, 95% lower bound | 99.8% | 99.8% | 99.3% | 99.4% | 99.2% | 99.3% |
-| Automation (lines / amount) | 76.2% / 69.0% | 77.6% / 76.5% | 59.3% / 63.7% | 60.9% / 71.2% | 53.9% / 44.9% | 58.3% / 68.7% |
-| Review: top suggestion right | 91.6% | 95.6% | 80.8% | 78.4% | 81.0% | 74.4% |
-| Review lines per week | 30.7 | 27.4 | 20.1 | 16.1 | 22.6 | 15.9 |
-| Wrong reminders (invoice already paid) | 1 | 0 | 2 | 2 | 2 | 11 |
-| Reminder drafts | 253 | 170 | 113 | 24 | 112 | 18 |
-| Money balances after every weekly run | yes | yes | yes | yes | yes | yes |
+## See it in two minutes
 
-**How to read the table:**
-- **Precision** is per bank line, and the whole allocation must be exact. A 40-invoice transfer with 39 invoices right counts as wrong.
-- **The auto threshold** is the lowest score whose Clopper–Pearson 95% lower bound is ≥ 99%. It is chosen on months 1–9 only. When nothing can be certified, nothing is auto-posted.
-- **Test months** contain corruptions that never appear earlier:
-  - the bank changes its transfer label format;
-  - family members pay under married names from new accounts;
-  - a département changes its statement layout.
-
-**Rules ship by default.** The learned model (gradient boosting, trained on months 1–7, threshold from a months 8–9 shadow run) automates a little more on every client. Two things count against it:
-- It writes far fewer reminder drafts: 24 vs 113 on Maple. Part of its "fewer wrong reminders" is simply sending fewer reminders.
-- On Client 3 it produced 11 wrong reminders against 2.
-
-Rules also explain themselves in words a clerk can check ("invoice number in the reference"). The model is the upgrade per client, once its shadow run certifies and beats rules on review effort. More in [docs/decisions.md](docs/decisions.md#model-vs-rules).
-
-### Hard cases
-
-There are 30 hand-written situations, written before the matching code, run through the real weekly pipeline. **30/30 pass** (`reports/hard_cases.md`). A selection:
-
-| Situation | What it did | Score |
-|---|---|---|
-| Direct debit returned unpaid (`REJET PRLV`) | auto: re-opens the invoice | 1.000 |
-| Daughter pays under her married name, from an unknown account | review, correct invoice on top | 0.881 |
-| Same daughter next month, after a reviewer confirmed the alias once | auto | 0.999 |
-| Partial payment, €600 of €2,400 | review (never auto for a partial) | 0.622 |
-| ASH bulk transfer whose statement arrives a week late | auto, via the payer's open shares for the period | 0.982 |
-| Guardian bulk payment that several invoice combinations fit | review: "several combinations fit (never auto)" | 0.378 |
-| APA lump sum from the département | not a receivable (`non_ar`) | — |
-| Reminder due, but unexplained cash from the family arrived last week | reminder held (`unapplied_cash`) | — |
-
-## How it works
-
-```mermaid
-flowchart LR
-    subgraph Onboarding["Onboarding, once per client"]
-        X[Raw exports:<br/>invoices, payers,<br/>bank, statements] --> P[Profiler]
-        P --> MP["Mapper<br/>(LLM or deterministic)"]
-        MP --> H{Human confirms}
-        H --> T[(templates/client.yaml)]
-    end
-    subgraph Weekly["Every week"]
-        B[New bank export] --> I[Idempotent import]
-        T --> I
-        I --> C["Candidates:<br/>mandate, reference, statement,<br/>bulk subset, name + FIFO"]
-        C --> S[Score: rules or model]
-        S --> G[Greedy allocation]
-        G --> D{"Score ≥ certified<br/>threshold, and a<br/>known label layout?"}
-        D -- yes --> A[Auto-post]
-        D -- no --> Q[Review queue]
-        Q --> R[Clerk: accept / pick / reject]
-        A --> BAL{Money balances?}
-        R --> BAL
-        BAL -- no --> FAIL[Run fails]
-        BAL -- yes --> REM["Reminders,<br/>with safety holds"]
-        REM --> E[Lettrage export + audit log]
-    end
-```
-
-**One scorer for every match type.** Each candidate is a set of edges to invoice shares plus signals, so a direct debit, a partial payment and a 40-line département transfer are ranked on the same scale. Thresholds apply after allocation, to what would actually be posted.
-
-**Safety mechanisms, each one measured:**
-- **Certified threshold.** Explained under the results table.
-- **Ambiguity.** If more than one invoice combination fits a bulk amount, the line never auto-posts.
-- **New-format guard.** A bank label layout never seen in history cannot auto-post. It is released only when the reviewed lines it held back certify ≥ 99% by the same lower-bound rule. Without it, the model on Azur posted the bank's new format at 90.2% precision (an earlier run, recorded in [decisions](docs/decisions.md#safety)).
-- **Reminder holds.** A reminder is held for:
-  - a pending review touching the invoice;
-  - unexplained cash in the last 90 days that could be the resident's;
-  - a just-returned direct debit;
-  - a deceased resident.
-- **Money balance.** After every run, credits = allocated + suspense + non-receivable income, and no line or invoice share is over-allocated. Otherwise the run fails. This check caught three real bugs during the build.
-
-## Onboarding a new client in 3 commands
+You need [uv](https://docs.astral.sh/uv/). No API key is needed.
 
 ```bash
-make data                                   # synthetic exports for 3 clients (+ 12 schema variants)
-make onboard CLIENT=client3                 # profile the exports, propose a template, ask to confirm
-make eval CLIENT=client3                    # history -> thresholds -> 14 weekly test runs -> report
+make all     # generate 3 clients, run the evaluation, write reports/ (about 2 minutes)
+make app     # open the review queue and reminder approval at http://localhost:8501
 ```
 
-Client 3 has different headers from Maple, a signed amount column instead of debit/credit, other category codes, and a junk column. The proposal took 2.2 s in the run I recorded, and it flagged the two inferences it made from data rather than headers:
+Then, for any bank line:
+
+```bash
+uv run python -m reconcile.pipeline explain --client azur --line b3c146d4
+```
+
+```
+bank line b3c146d4312128e5  2025-12-29  941.16
+  label:     VIREMENT RECU /DE MME PETIT RENEE
+  reference: /MOTIF FA2025-007208
+outcome: review
+thresholds: auto >= 0.9959, review >= 0.7311
+top: reference  score 0.9759
+    FA2025-007208  Renée Petit (family)  941.16
+    + invoice number in the reference
+    + amount settles the invoice share(s) exactly
+    + oldest open invoice first
+    - several payers could match this line
+    + same amount as this payer's recent payments
+alt 1: name_fifo  score 0.1192
+    FA2025-004064  Thérèse Petit (family)  941.16
+...
+```
+
+The evidence is strong but sits just under the certified threshold, because several payers named Petit have open invoices. So a clerk confirms it with one click. `reports/lettrage_azur.csv` is what the billing software would receive. All names in it are generated.
+
+## Why the numbers can be trusted
+
+1. **Truth by construction.** The generator simulates who meant to pay what, then renders it into each client's export formats. The answer key never reaches the pipeline.
+2. **Fixed before the code.** The metric definitions and the 30 hard cases were committed in the first commit (`1912ff0`), before any matching code, and have not changed since. Four deviations are declared in [docs/preregistration.md](docs/preregistration.md).
+3. **A quarter it never saw.** Thresholds are certified on months 1–9 only. The test quarter adds problems that never occur earlier: the bank changes its label format, family members pay under married names from new accounts, a département changes its statement layout.
+4. **A bound, not a point estimate.** The auto threshold is the lowest score whose 95% Clopper–Pearson lower bound on precision is ≥ 99%. When nothing certifies, nothing is posted. This happens to the learned model on two clients ([decisions](docs/decisions.md#model-vs-rules)).
+5. **Reproducible.** `make all` regenerates the data and the rules results from scratch, byte for byte; `make experiments` adds the model comparison, noise sweep and feedback loop.
+
+## Results (rules scorer, test months 10–12, 14 weekly runs)
+
+Every number below is in `reports/eval_<client>_rules.md` or `reports/metrics_<client>_rules.json`.
+
+| | Azur (FR, 600 residents) | Maple (UK, 300) | Client 3 (UK, scrambled schema) |
+|---|---|---|---|
+| Auto-posted lines (wrong) | 1473 (0) | 453 (0) | 393 (0) |
+| Precision, 95% lower bound | 99.8% | 99.3% | 99.2% |
+| Automation, all receivable lines | 76.2% | 59.3% | 53.8% |
+| Automation, excluding direct debits | 5.3% | 6.2% | 0.3% |
+| Review queue: first suggestion right | 69.1% | 59.0% | 63.6% |
+| Review lines per week | 30.7 | 20.9 | 22.9 |
+| Left unapplied (suspense) | 30 | 18 | 19 |
+| Reminder drafts / for a share already paid | 255 / 1 | 151 / 2 | 136 / 2 |
+| Overdue unpaid shares never drafted or held | 0 | 0 | 0 |
+| Money balanced after every weekly run | yes | yes | yes |
+
+A learned model (gradient boosting) is compared in [docs/decisions.md](docs/decisions.md#model-vs-rules):
+- **On Azur** it certifies, and in review its first suggestion is right 90.8% of the time against 69.1%.
+- **On the two smaller clients** it falls just short of certifying (98.99% and 98.98%), so it posts nothing.
+
+Rules therefore ship first, and the model is switched on per client.
+
+### What it does with each kind of payment
+
+There are 30 hand-written situations, run through the real weekly pipeline: **30/30 pass** ([reports/hard_cases.md](reports/hard_cases.md)). They use fixed thresholds (auto ≥ 0.95) so they do not depend on one dataset. Under Azur's certified threshold of 0.996, the rows marked auto at 0.98 below would go to review instead.
+
+| Situation | Outcome |
+|---|---|
+| Direct debit returned unpaid (`REJET PRLV`) | posted automatically, invoice re-opened |
+| Daughter pays under her married name, from an unknown account | review, correct invoice suggested first |
+| Same daughter next month, after a clerk confirmed her once | auto (the alias was learned) |
+| Partial payment, €600 of €2,400 | review: never automatic |
+| Département transfer whose statement arrives a week later | auto (0.98), via the payer's open shares for the period |
+| Guardian payment that several combinations of invoices fit | review: "several combinations fit (never auto)" |
+| APA lump sum from the département | recognised as not a receivable |
+| Reminder due, but unexplained cash from the family arrived last week | reminder held |
+
+On the real test quarter, married-name payments are much harder than this hand-written case: the right answer is first for only 1 of 7 on Azur.
+
+## Onboarding a new client
+
+```bash
+make onboard CLIENT=client3   # profile the exports, propose a template, ask for confirmation
+make eval CLIENT=client3      # history -> thresholds -> 14 weekly runs -> report
+```
+
+Client 3 has different headers, a signed amount instead of debit/credit columns, other category codes and a junk column. The proposal flags what it inferred from the data rather than from headers, for the human to confirm:
 
 ```
 billing_export.csv   doc_type value     ADJ  -> credit  conf=0.50  <-- inferred from data, please check
 funding_sources.csv  payer_type value   TPT  -> family  conf=0.50  <-- inferred from data, please check
 ```
 
-No Python file mentions a client header (a test enforces this), and the committed templates are exactly what `onboard` proposes.
+No Python file contains a client's header (a test enforces it). The committed templates are exactly what `onboard` proposes.
 
-**Mapping eval** (`reports/mapping_eval.md`): 15 schemas, the 3 clients plus 12 variants whose headers come from a vocabulary pool disjoint from the mapper's.
+**How well the mapper does on export formats it has never seen** ([reports/mapping_eval.md](reports/mapping_eval.md)):
 - **The 3 clients:** 100% correct.
-- **The 12 variants:** 388/551 decisions right (70.4%).
-- **Variants refused:** 11 of the 12, by the drift checks or the data-quality gates, so the mistake surfaces at onboarding rather than in the books.
-- **The failure that matters:** 1 variant (`variant_11_maple`, 84.4% right) loads while silently wrong.
+- **12 extra schemas** whose headers come from a vocabulary the mapper does not know: none onboards correctly unattended. 388/551 mapping decisions are right (70.4%).
+- **What the checks catch:** 11 of the 12 are refused loudly by the drift and data-quality checks, so the mistake surfaces at onboarding, not in the books.
+- **The failure that matters:** 1 (`variant_11_maple`) loads while wrong.
 
-## Where the LLM is used, and where it isn't
+## Where it fails
 
-- **Used:** only at onboarding, to propose a template from column *profiles*. Person names are masked as `<A>`, and the model never sees rows, because this is health-adjacent data.
-  - One wrapper (`reconcile/llm.py`) does structured output (`messages.parse` with a pydantic schema), a record/replay cache, and per-call logging of tokens, latency and cost.
+1. **The bank's new label format.** In the test quarter, Azur's bank changes how transfers are labelled. Lines in the new format (420 of 1,933) are never auto-posted, and the right answer is first for only 67.9% of them, against 99.7% for unchanged lines. A guard holds them for review until reviewed lines of the new layout certify ≥ 99%. A looser guard I tried released a slice that was 91% right. The real fix, not built, is an alert on a new layout so someone updates the label parser in week one.
+2. **Wrong reminders: 1 / 2 / 2.** All five come from the held-out changes: a married name from a new account, or a typo in the new label format. Each one is listed in the eval reports with the bank line that had paid it.
+3. **The holds have a price.** Holds delayed about 330 reminders per client per quarter for shares that really were unpaid. That is the cost of chasing almost no one who already paid.
+4. **Messier data costs review effort, not precision.** In the noise sweep, every messiness rate was multiplied by 0.5× to 3×:
+   - precision stayed 100% (99.8% bound) throughout;
+   - the first suggestion in review dropped from 87.1% to 60.7% right;
+   - wrong reminders went from 0 to 4.
+5. **Learning from the review queue alone did not work.** With a cold start, no history and retraining every 4 weeks, a model trained on review labels never certified. Review labels over-represent hard cases; a client's historical lettering is the real training signal.
+
+## Where the LLM is used, and where it is not
+
+- **Used:** only at onboarding, to propose a mapping template from column profiles. Words that could be names are masked before anything is sent; a test checks that no resident or family name from the three clients appears.
+  - Every proposal is validated: only discovered files, existing columns and allowed values.
+  - The human confirms the final template, with each disagreement against the deterministic mapper flagged.
   - Any failure falls back to the deterministic mapper.
-- **Not used:** in the weekly path. Matching thousands of lines a week has to be deterministic, cheap and explainable. Reminders are template text, not generated.
-- **Not yet measured:** no API key was available while building. The Sonnet/Haiku rows of the mapping eval therefore say "not run", and every result in this README comes from the deterministic mapper. One run with a key fills the replay cache; after that the eval is free and reproducible.
-
-## Failure analysis
-
-**1. The bank's new label format is never auto-posted in the test quarter.**
-- **Scale:** 420 of 1,933 Azur test lines (257 Maple, 266 Client 3) go to review.
-- **Lower-precision suggestions:** the top suggestion on those lines is right only 67.9% / 56.0% / 60.5% of the time (rules), against 99.7% on unshifted Azur lines.
-- **What it costs:** most of the review queue. Rules held back 77 Azur auto-posts.
-- **How the release rule was chosen:** I tried a looser release rule (30 held-back lines at ≥ 97% accepted). It lifted the guard and released a slice that was really 91–95% right: 18 wrong auto-posts for the model on Azur. That run was superseded; it is recorded in [decisions](docs/decisions.md#safety).
-- **The real fix is not built:** alert on a new layout and update the label parser in week one.
-
-**2. Wrong reminders: 1 / 2 / 2 (rules), all caused by held-out shifts.**
-- **Azur:** a catch-up payment for two months, in the new label format, by a family member under a married name from a new account, with an empty reference (`VIREMENT RECU /DE MME FRANCOIS HELENE`, `/MOTIF`).
-- **Maple:** both are one payment, `FP D THOAMS`: an initial, a typo, the new format, and two old invoices paid at once.
-- **Client 3:** both are married-name payments (`FP S PARKER EDWARD`, `FP MRS E CLARK INV`).
-
-**3. The holds cost something.**
-- **Delayed reminders:** a hold delayed reminders for genuinely unpaid invoices 329 / 295 / 289 times per quarter. That is the price of 1–2 wrong reminders instead of many more.
-- **Missed reminders:** Maple has 4 and Client 3 has 2 (overdue, unpaid, and neither drafted nor held). I have not diagnosed these yet.
-
-**4. Messier data degrades recall, not precision.**
-- **Noise sweep** (`reports/noise_sweep_azur_rules.md`): every messiness rate multiplied from 0.5× to 3×.
-- **Precision:** stays at 100%, with a 99.8% lower bound.
-- **Top-suggestion accuracy:** falls from 96.6% to 89.1%.
-- **Wrong reminders:** rise from 0 to 4.
-
-**5. Learning from the review queue alone did not work.**
-- **The setup:** a cold start with no history, a simulated reviewer making 3% errors, and retraining every 4 weeks.
-- **What it achieved:** the rules scorer held 70–77% automation at 100% precision every month (`reports/feedback_azur.md`).
-- **The retrained model:** never certified 99%. Review labels over-represent the hard cases. The real training signal is the client's historical lettrage, which is what the model above uses.
-
-**6. Greedy allocation is not optimal, and that is measured.** On small conflict components, greedy found a worse total than exhaustive search in 1 of 188 (Azur), 0 of 138 (Maple) and 3 of 138 (Client 3).
-
-## What I'd ask the customer in week 1
-
-1. **A year of lettered history and the matching bank exports.** This sets the auto threshold and trains the model. Without it, we start on rules and certify on live review.
-2. **Your current error tolerance.** How many misposts per month does the team catch today, and what does one cost to unwind? That sets the 99% target, which is a parameter.
-3. **The payment-method mix.** What share pays by direct debit, by family transfer, or through the département or a guardian? No public source gives this, so the synthetic mix is an assumption (`config/*.yaml`).
-4. **The ASH/APA statements.** Do they arrive as PDF, CSV or paper, and how late? Statements are the primary path for bulk payments.
-5. **Who approves reminders,** and which cases are never chased: deceased residents, or disputes in progress.
-6. **The billing software and its import format,** to replace the generic lettrage CSV export.
-7. **Hosting constraints.** Is HDS-certified hosting required? Can column profiles (never rows) be sent to an LLM at all?
+- **Not used:** anywhere in the weekly path. Matching thousands of lines a week has to be deterministic, cheap and explainable, and reminders are template text.
+- **Not yet measured:** no API key was available while building. Every result above comes from the deterministic mapper.
 
 ## Limitations
 
-- **Synthetic data, so circularity is the main risk.** I wrote both the generator and the matcher. The mitigations:
-  - the test quarter contains corruption types never seen in training;
-  - the noise sweep;
-  - the hard cases were written before the matcher;
-  - the rules baseline is always reported next to the model.
+- **Synthetic data.** I wrote both the generator and the matcher, so circularity is the main risk. The mitigations:
+  - held-out changes in the test quarter;
+  - a noise sweep;
+  - hard cases written before the matcher;
+  - a rules baseline next to the model.
 
-  None of this replaces a week on a real client's books.
-- **Simplifications** are listed in [docs/decisions.md](docs/decisions.md#domain). Examples:
-  - direct debits arrive as one line per resident, not as a batch;
+  None of it replaces a week on real books.
+- **Simplifications,** listed in [docs/decisions.md](docs/decisions.md#domain). Examples:
+  - direct debits arrive as one line per resident;
   - local authorities pay monthly;
   - credit notes arrive with their invoice.
-- **The LLM mapping path is untested** (see above).
-- **The review app** (`make app`) has been driven headless with Streamlit's test harness: the queue rendered, and an Accept wrote a label, an audit row and the saved state. It has not been used by a clerk.
+- **The review app** is a single-operator tool on localhost, with no login.
+- **What remains open** is listed in [docs/review-log.md](docs/review-log.md#not-fixed).
 
-**Next steps:**
-1. Run the LLM mapping eval with a key.
-2. Add a new-layout alert, plus a parser update path.
-3. Diagnose the 6 missed reminders.
-4. Add batch SEPA DD files.
-5. Add a PDF statement reader.
+## What I would do with your data
 
-## Quickstart
+[docs/first-weeks.md](docs/first-weeks.md): week 1 onboard and replay a year of your lettering; week 2 shadow mode next to your clerks; week 3 switch on only what certified on your history. It starts with seven questions to ask in week 1.
 
-Requires [uv](https://docs.astral.sh/uv/). No API key is needed.
+## Repository guide
+
+| Document | What it covers |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | Code map, data flow, where each invariant is enforced and tested |
+| [docs/decisions.md](docs/decisions.md) | Every design decision, the alternative, and why; model vs rules |
+| [docs/review-log.md](docs/review-log.md) | What independent correctness, security, quality and documentation reviews found, and what was fixed |
+| [docs/glossary.md](docs/glossary.md) | Lettrage, ASH, APA, RUM, UDAF, and the project's own terms |
+| [docs/preregistration.md](docs/preregistration.md) | Metrics and risks as written before the matching code |
+| `reports/` | Every evaluation report and plot. Plots: [noise sweep](reports/noise_sweep_azur_rules.png), [cold-start feedback loop](reports/feedback_azur.png), reliability diagrams ([Azur](reports/reliability_azur.png), [Maple](reports/reliability_maple.png), [Client 3](reports/reliability_client3.png)) |
 
 ```bash
-make all          # data + rules eval for 3 clients + mapping eval + hard cases (~1-2 min)
-make test         # 62 tests
-make experiments  # learned model on 3 clients, noise sweep, feedback loop (slower)
-make app          # review queue + reminder approval on the saved state (Streamlit)
-make run CLIENT=azur WEEK=2025-12-31   # one weekly run on saved state; re-running imports nothing new
+make all           # data + rules evaluation + mapping eval + hard cases
+make experiments   # learned model on 3 clients, noise sweep, feedback loop
+make test          # 75 tests
+make lint          # ruff + ty
+make run CLIENT=azur WEEK=2025-12-31   # one weekly run on saved state; rerunning imports nothing new
 make export CLIENT=azur                # lettrage CSV for the billing software
 ```
 
-**Reports:**
-- `reports/eval_*.md`: per-client results, by match type, by shift, and every auto error.
-- `reports/hard_cases.md`
-- `reports/mapping_eval.md`
-- Plots:
-  - [noise sweep](reports/noise_sweep_azur_rules.png)
-  - [feedback loop](reports/feedback_azur.png)
-  - reliability diagrams ([Azur](reports/reliability_azur.png), [Maple](reports/reliability_maple.png), [Client 3](reports/reliability_client3.png)), Brier 0.0245 / 0.0126 / 0.0186
+![Reminders: drafts waiting for approval, and holds with their reason](docs/img/reminders.png)
 
-The probability shown to reviewers is calibrated for display only. Calibration never changes what is auto-posted.
+## About
 
-**Design decisions and the reasons behind them:** [docs/decisions.md](docs/decisions.md).
+<!-- Fill in before sending: your name, contact, and why this problem. -->
+Built by **[your name]** ([email / LinkedIn]) as a work sample for a forward-deployed engineering role.
+
+I wrote it with an AI coding assistant. I specified the problem, the metrics and the hard cases before any matching code. I made the design decisions in [docs/decisions.md](docs/decisions.md), and I checked every number against the reports. The assistant wrote most of the code. I then had the repository independently reviewed for correctness, security and quality, and fixed what was found ([review log](docs/review-log.md)).
