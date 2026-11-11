@@ -1,6 +1,18 @@
-# PLAN
+# Pre-registration
 
-**Goal.** A payment-to-invoice matching agent for care-home groups. It is measured against exact ground truth, and onboarding a new client takes a mapping template, not code. The full brief, with metric definitions, is in the parent folder (`netter_recon_claude_code_prompt_v2.md`).
+This file was written in the first commit (`1912ff0`), before any matching, scoring or decision code existed, together with the 30 hard cases in `eval/hard_cases.yaml`. Neither file has been changed since; `git diff 1912ff0 HEAD -- eval/hard_cases.yaml` is empty. It is kept so that a reader can check the metrics were fixed before the results were known.
+
+**Deviations from this plan, declared:**
+1. **Rules thresholds use months 1–9, not 8–9.** The rules scorer is not trained, so all nine history months are out-of-sample for it, and months 8–9 alone held too few lines to certify 99% on the smaller clients. The learned model still uses the months 8–9 shadow run as planned.
+2. **A new-format guard was added.** The bank's label change in month 10 broke the model's certified precision on the test months; see [decisions.md](decisions.md#safety).
+3. **Reminders are per payer share, not per invoice.** "Wrong reminder" is therefore measured per share (a reminder to a payer whose own share was already paid). One invoice with a département share and a family share can produce two reminders.
+4. **The test quarter is 14 weekly runs** (13 Sundays plus the 31 December stub week).
+
+The original text follows unchanged, except that a reference to a working brief outside this repository was removed.
+
+---
+
+**Goal.** A payment-to-invoice matching agent for care-home groups. It is measured against exact ground truth, and onboarding a new client takes a mapping template, not code.
 
 ## Structure
 - `reconcile/generate/`: simulates intents, renders client files, writes truth to `_truth/`.
