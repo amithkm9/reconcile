@@ -1,0 +1,178 @@
+# Hand-written hard cases, written BEFORE the matching code. Each case is a tiny ledger: the base
+# residents below, invoices for Jan-Mar 2025, optional history (already-lettered lines), optional
+# remittance statements, and the bank line(s) under test. The expectations are what a careful AR
+# clerk would want, not what the code happens to do.
+#
+# Invoice ids: FA2025-00{resident:02d}{month:02d}, e.g. R2's February invoice is FA2025-000202.
+patterns: {invoice: "FA\\d{4}-\\d{6}", mandate: "RUM-AZ-\\d{6}", remittance: "AV-\\d{2}-\\d{4}-\\d{4}"}
+months: ["2025-01", "2025-02", "2025-03"]
+residents:
+  1: {name: DUPONT Marie, facility: Les Pins, monthly: 2400.00, payers: [{name: Marie Dupont, type: resident, pct: 100, mandate: RUM-AZ-000001}]}
+  2: {name: MARTIN Hélène, facility: Les Pins, monthly: 2400.00, payers: [{name: Sophie Leroy, type: family, pct: 100}]}
+  3: {name: BERNARD Jean, facility: Les Pins, monthly: 2500.00, payers: [{name: Département du Var, type: public_aid, pct: 80}, {name: Jean Bernard, type: resident, pct: 20, mandate: RUM-AZ-000003}]}
+  4: {name: PETIT Simone, facility: Les Pins, monthly: 2310.00, payers: [{name: Département du Var, type: public_aid, pct: 85}, {name: Paul Petit, type: family, pct: 15}]}
+  5: {name: ROUX Odette, facility: Les Pins, monthly: 2290.00, payers: [{name: Département du Var, type: public_aid, pct: 75}, {name: Odette Roux, type: resident, pct: 25, mandate: RUM-AZ-000005}]}
+  6: {name: GIRARD Louis, facility: Le Clos Fleuri, monthly: 2400.00, payers: [{name: UDAF 83, type: guardian, pct: 100}]}
+  7: {name: MOREL Yvette, facility: Le Clos Fleuri, monthly: 2400.00, payers: [{name: UDAF 83, type: guardian, pct: 100}]}
+  8: {name: FAURE René, facility: Le Clos Fleuri, monthly: 2400.00, exit: "2025-02-14", payers: [{name: Claire Faure, type: family, pct: 100}]}
+
+# Shorthand used below: "jan_paid: [2]" posts January as fully paid for those residents' shares.
+cases:
+  - id: dd_exact
+    jan_paid: [1]
+    line: {date: "2025-02-05", amount: 2400.00, label: "PRLV SEPA RUM-AZ-000001", ref: "FA2025-000102"}
+    expect: {outcome: auto, allocation: [[FA2025-000102, 2400.00]]}
+
+  - id: dd_return_reopens_invoice
+    history: [{date: "2025-02-05", amount: 2400.00, label: "PRLV SEPA RUM-AZ-000001", ref: "FA2025-000102", allocation: [[FA2025-000102, 2400.00]]}]
+    line: {date: "2025-02-13", amount: -2400.00, label: "REJET PRLV SEPA RUM-AZ-000001 AM04", ref: "FA2025-000102"}
+    expect: {outcome: auto, allocation: [[FA2025-000102, -2400.00]]}
+
+  - id: family_daughter_with_invoice_number
+    jan_paid: [2]
+    line: {date: "2025-02-11", amount: 2400.00, label: "VIR SEPA MME LEROY SOPHIE", ref: "FA2025-000202"}
+    expect: {outcome: auto, allocation: [[FA2025-000202, 2400.00]]}
+
+  - id: family_daughter_free_text
+    jan_paid: [2]
+    line: {date: "2025-02-11", amount: 2400.00, label: "VIR SEPA MME LEROY SOPHIE", ref: "PENSION FEV"}
+    expect: {outcome: auto, allocation: [[FA2025-000202, 2400.00]]}
+
+  - id: daughter_married_name_unknown_account
+    note: Sophie now pays as BLANC from a new account; payer table not updated. Only the resident's surname in the reference links it.
+    jan_paid: [2]
+    line: {date: "2025-02-11", amount: 2400.00, label: "VIR SEPA MME BLANC SOPHIE", ref: "PENSION FEV MARTIN"}
+    expect: {outcome: review, allocation: [[FA2025-000202, 2400.00]]}
+
+  - id: married_name_learned_from_review
+    note: A reviewer accepted a BLANC SOPHIE payment for R2 in January; the alias is now known.
+    history: [{date: "2025-01-11", amount: 2400.00, label: "VIR SEPA MME BLANC SOPHIE", ref: "PENSION JANV MARTIN", allocation: [[FA2025-000201, 2400.00]], source: review_accept}]
+    line: {date: "2025-02-11", amount: 2400.00, label: "VIR SEPA MME BLANC SOPHIE", ref: "PENSION FEV"}
+    expect: {outcome_in: [auto, review], allocation: [[FA2025-000202, 2400.00]]}
+
+  - id: typo_in_payer_name
+    jan_paid: [2]
+    line: {date: "2025-02-11", amount: 2400.00, label: "VIR SEPA MME LERY SOPHIE", ref: ""}
+    expect: {outcome_in: [auto, review], allocation: [[FA2025-000202, 2400.00]]}
+
+  - id: partial_600_of_2400
+    jan_paid: [2]
+    line: {date: "2025-02-11", amount: 600.00, label: "VIR SEPA MME LEROY SOPHIE", ref: "PENSION FEV"}
+    expect: {outcome: review, allocation: [[FA2025-000202, 600.00]]}
+
+  - id: two_months_at_once
+    line: {date: "2025-02-11", amount: 4800.00, label: "VIR SEPA MME LEROY SOPHIE", ref: "JANV FEV"}
+    expect: {outcome_in: [auto, review], allocation: [[FA2025-000201, 2400.00], [FA2025-000202, 2400.00]]}
+
+  - id: same_amount_two_open_months_no_reference
+    note: Jan and Feb both open for the same amount, no reference; lettrage convention is oldest first.
+    line: {date: "2025-02-11", amount: 2400.00, label: "VIR SEPA MME LEROY SOPHIE", ref: ""}
+    expect: {outcome_in: [auto, review], allocation: [[FA2025-000201, 2400.00]]}
+
+  - id: overpayment
+    jan_paid: [2]
+    line: {date: "2025-02-11", amount: 2450.00, label: "VIR SEPA MME LEROY SOPHIE", ref: "FA2025-000202"}
+    expect: {outcome: review, allocation: [[FA2025-000202, 2400.00]]}
+
+  - id: duplicate_payment_nothing_left_open
+    jan_paid: [2]
+    history: [{date: "2025-02-11", amount: 2400.00, label: "VIR SEPA MME LEROY SOPHIE", ref: "PENSION FEV", allocation: [[FA2025-000202, 2400.00]]}]
+    as_of: "2025-02-16"
+    line: {date: "2025-02-14", amount: 2400.00, label: "VIR SEPA MME LEROY SOPHIE", ref: "PENSION FEV"}
+    expect: {outcome_in: [unapplied, review]}
+
+  - id: ash_bulk_with_statement
+    remittances:
+      - {id: AV-83-2025-0001, date: "2025-02-18", payer: Département du Var, facility: Les Pins, rows: [["BERNARD Jean", "2025-02", 2000.00], ["PETIT Simone", "2025-02", 1963.50], ["ROUX Odette", "2025-02", 1717.50]]}
+    line: {date: "2025-02-20", amount: 5681.00, label: "VIR DEPARTEMENT DU VAR", ref: "AV-83-2025-0001"}
+    expect: {outcome: auto, allocation: [[FA2025-000302, 2000.00], [FA2025-000402, 1963.50], [FA2025-000502, 1717.50]]}
+
+  - id: ash_bulk_statement_new_layout
+    note: The département changed how it writes beneficiaries (dossier number, first name first).
+    remittances:
+      - {id: AV-83-2025-0002, date: "2025-02-18", payer: Département du Var, facility: Les Pins, rows: [["D10003 - Jean BERNARD", "2025-02", 2000.00], ["D10004 - Simone PETIT", "2025-02", 1963.50], ["D10005 - Odette ROUX", "2025-02", 1717.50]]}
+    line: {date: "2025-02-20", amount: 5681.00, label: "VIR DEPARTEMENT DU VAR", ref: "AV-83-2025-0002"}
+    expect: {outcome_in: [auto, review], allocation: [[FA2025-000302, 2000.00], [FA2025-000402, 1963.50], [FA2025-000502, 1717.50]]}
+
+  - id: ash_bulk_statement_arrives_late
+    note: No statement yet, but the transfer is exactly the département's open shares for the facility and period.
+    line: {date: "2025-02-20", amount: 5681.00, label: "VIR DEPARTEMENT DU VAR", ref: "AIDE SOCIALE 02/2025 LES PINS"}
+    expect: {outcome_in: [auto, review], allocation: [[FA2025-000302, 2000.00], [FA2025-000402, 1963.50], [FA2025-000502, 1717.50]]}
+
+  - id: ash_bulk_one_resident_excluded
+    note: Dossier pending for PETIT; the transfer covers the other two. Only one subset fits.
+    line: {date: "2025-02-20", amount: 3717.50, label: "VIR DEPARTEMENT DU VAR", ref: "AIDE SOCIALE 02/2025 LES PINS"}
+    expect: {outcome: review, allocation: [[FA2025-000302, 2000.00], [FA2025-000502, 1717.50]]}
+
+  - id: guardian_bulk_exact
+    line: {date: "2025-02-15", amount: 4800.00, label: "VIR UDAF 83", ref: "MANDATS 02/2025"}
+    expect: {outcome: auto, allocation: [[FA2025-000602, 2400.00], [FA2025-000702, 2400.00]]}
+
+  - id: guardian_bulk_ambiguous
+    note: 2400 could be GIRARD's or MOREL's February share. Two valid subsets -> never auto.
+    line: {date: "2025-02-15", amount: 2400.00, label: "VIR UDAF 83", ref: "MANDATS 02/2025"}
+    expect: {outcome: review}
+
+  - id: apa_dotation_is_not_a_receivable
+    line: {date: "2025-02-21", amount: 31234.56, label: "VIR DEPARTEMENT DU VAR", ref: "APA DOTATION 02/2025 LES PINS"}
+    expect: {outcome: non_ar}
+
+  - id: bank_interest
+    line: {date: "2025-02-28", amount: 12.34, label: "INTERETS CREDITEURS", ref: ""}
+    expect: {outcome: non_ar}
+
+  - id: unknown_payer
+    line: {date: "2025-02-10", amount: 650.00, label: "VIR SEPA M LAMBERT JEAN", ref: "REGLEMENT"}
+    expect: {outcome: unapplied}
+
+  - id: deposit_refund_debit
+    line: {date: "2025-02-10", amount: -2000.00, label: "VIR SEPA EMIS DUPONT MARIE", ref: "REMB DEPOT GARANTIE"}
+    expect: {outcome: non_ar}
+
+  - id: dd_split_share
+    jan_paid: [3]
+    line: {date: "2025-02-05", amount: 500.00, label: "PRLV SEPA RUM-AZ-000003", ref: "FA2025-000302"}
+    expect: {outcome: auto, allocation: [[FA2025-000302, 500.00]]}
+
+  - id: family_split_share_no_reference
+    jan_paid: [4]
+    line: {date: "2025-02-12", amount: 346.50, label: "VIR SEPA M PETIT PAUL", ref: ""}
+    expect: {outcome_in: [auto, review], allocation: [[FA2025-000402, 346.50]]}
+
+  # ---------- reminders (run at as_of; an invoice overdue past the grace period gets a draft unless held) ----------
+  - id: reminder_drafted_when_really_unpaid
+    jan_paid: [4]
+    as_of: "2025-03-09"
+    reminders: {FA2025-000402: drafted}
+
+  - id: reminder_held_for_deceased_resident
+    jan_paid: [8]
+    as_of: "2025-03-09"
+    reminders: {FA2025-000802: held:deceased}
+
+  - id: reminder_held_by_unapplied_cash
+    note: The daughter paid from a new account; we could not place the cash. Do not chase her.
+    jan_paid: [2]
+    as_of: "2025-03-09"
+    line: {date: "2025-02-20", amount: 2400.00, label: "VIR SEPA SB", ref: ""}
+    reminders: {FA2025-000202: held:unapplied_cash}
+
+  - id: reminder_held_by_pending_review
+    jan_paid: [2]
+    as_of: "2025-03-09"
+    line: {date: "2025-02-20", amount: 600.00, label: "VIR SEPA MME LEROY SOPHIE", ref: "PENSION FEV"}
+    reminders: {FA2025-000202: held:pending_review}
+
+  - id: reminder_held_after_dd_return
+    jan_paid: [1]
+    as_of: "2025-03-09"
+    history:
+      - {date: "2025-02-05", amount: 2400.00, label: "PRLV SEPA RUM-AZ-000001", ref: "FA2025-000102", allocation: [[FA2025-000102, 2400.00]]}
+      - {date: "2025-02-13", amount: -2400.00, label: "REJET PRLV SEPA RUM-AZ-000001 AM04", ref: "FA2025-000102", allocation: [[FA2025-000102, -2400.00]]}
+    reminders: {FA2025-000102: held:dd_return}
+
+  - id: small_residual_is_settled
+    jan_paid: [2]
+    as_of: "2025-03-09"
+    history: [{date: "2025-02-11", amount: 2399.00, label: "VIR SEPA MME LEROY SOPHIE", ref: "PENSION FEV", allocation: [[FA2025-000202, 2399.00]]}]
+    reminders: {FA2025-000202: none}

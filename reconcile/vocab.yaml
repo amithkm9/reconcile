@@ -1,0 +1,23 @@
+# Language knowledge (FR/EN), not client knowledge. Nothing here names a client's columns.
+titles: [MME, MADAME, MLLE, MADEMOISELLE, M, MR, MONSIEUR, MRS, MS, MISS, DR, MAITRE, MLE]
+stopwords: [VIR, VIREMENT, SEPA, RECU, RECUE, INST, DE, DU, LA, LE, LES, DES, ET, MOTIF, REF, PRLV,
+  PRELEVEMENT, POUR, PAR, FPI, FP, BGC, BACS, BAC, PAYMENT, PMT, FROM, TO, FOR, THE, AND, FEES, FEE,
+  CARE, OF, EMIS, ORDRE, REMISE, CB, CHQ, CHEQUE]
+months:
+  1: [JANVIER, JANV, JAN, JANUARY]
+  2: [FEVRIER, FEVR, FEV, FEBRUARY, FEB]
+  3: [MARS, MAR, MARCH]
+  4: [AVRIL, AVR, APRIL, APR]
+  5: [MAI, MAY]
+  6: [JUIN, JUNE, JUN]
+  7: [JUILLET, JUIL, JULY, JUL]
+  8: [AOUT, AUGUST, AUG]
+  9: [SEPTEMBRE, SEPT, SEP, SEPTEMBER]
+  10: [OCTOBRE, OCT, OCTOBER]
+  11: [NOVEMBRE, NOV, NOVEMBER]
+  12: [DECEMBRE, DEC, DECEMBER]
+# A bank line containing one of these is income that settles no resident invoice (or an outgoing refund).
+non_ar_keywords: [APA, DOTATION, INTERETS, INTERET, INTEREST, ASSURANCE, INSURANCE, SINISTRE, CLAIM,
+  DEPOT, DEPOSIT, HMRC, REMB, REFUND, SUBVENTION, GRANT]
+# A debit containing one of these is a returned direct debit: it re-opens the invoice.
+return_keywords: [REJET, IMPAYE, UNPAID, RETURNED, RETOUR, REJECT]

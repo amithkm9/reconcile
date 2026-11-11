@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.env
+data/
+state/
+reports/audit_*.jsonl
+reports/llm_calls.jsonl
+.DS_Store

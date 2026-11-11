@@ -1,0 +1,165 @@
+# Generator config for Maple Care Homes (fictional, England, 5 homes).
+# UK funding: self-funders by DD, family top-ups, local authorities (with remittance advice),
+# NHS Funded Nursing Care / Continuing Healthcare via the ICB. No insurers (pre-funded care cover
+# was withdrawn in 2010; immediate-needs annuities are rare).
+client: maple
+seed: 7
+start_month: "2025-01"
+months: 12
+n_residents: 300
+monthly_death_rate: 0.015
+post_exit_billable_days: 3
+issue_day: 20
+due_day: 1
+dd_day: 1
+credit_note_deduction_per_day: 0.0
+
+facilities:
+  - {code: MCH-ASH, name: Ashford House, region: KENT, daily_rate: 172.00}
+  - {code: MCH-BIR, name: Birchwood, region: KENT, daily_rate: 165.50}
+  - {code: MCH-CHE, name: Chestnut Lodge, region: MEDWAY, daily_rate: 181.25}
+  - {code: MCH-DOV, name: Dover View, region: KENT, daily_rate: 158.00}
+  - {code: MCH-ELM, name: Elm Court, region: MEDWAY, daily_rate: 176.40}
+extra_daily_rate: 0.0
+other_region_rate: 0.10
+
+public_payers:
+  KENT: Kent CC
+  MEDWAY: Medway Council
+guardians: []
+health_funder: NHS Kent ICB
+
+# ASSUMPTION: payment-method mix.
+profiles:
+  - {name: self_dd, weight: 0.45, shares: [{type: resident, pct: 100, method: dd}]}
+  - {name: family_full, weight: 0.10, shares: [{type: family, pct: 100, method: transfer}]}
+  - {name: la_topup, weight: 0.25, shares: [{type: public_aid, pct: [75, 85], method: bulk}, {type: family, pct: rest, method: transfer}]}
+  - {name: la_fnc, weight: 0.10, shares: [{type: public_aid, pct: [65, 75], method: bulk}, {type: health_funder, pct: rest, method: bulk}]}
+  - {name: chc, weight: 0.10, shares: [{type: health_funder, pct: 100, method: bulk}]}
+
+rates:
+  dd_return: 0.02
+  family: {late: 0.15, partial: 0.08, multi_month: 0.07, unpaid: 0.04, overpay: 0.02, rounding: 0.04}
+  duplicate_payment: 0.01
+  typo: 0.08
+  ref_invoice: 0.30
+  ref_free: 0.45
+  credit_note: 0.03
+  bulk_exclusion: 0.25
+  guardian_exclusion: 0.0
+  remittance_missing: 0.15
+  remittance_late: 0.30
+  unknown_credits_per_month: 2
+  refunds_per_month: 1
+  non_ar_per_month: 1
+
+shift:
+  start_month_index: 9
+  married_name_rate: 0.10
+  remittance_layout_region: MEDWAY
+
+ids:
+  resident: "MR{n:04d}"
+  invoice: "INV-{n:05d}"
+  credit: "CRN-{n:05d}"
+  mandate: "MCH{n:06d}"
+  remittance: "RA{n:06d}"
+
+text:
+  country: UK
+  family_relations: [daughter, son, niece, nephew, daughter-in-law, son-in-law]
+  same_surname_rate: 0.45
+  title_rate: 0.3
+  titles: {F: MRS, M: MR}
+  payer_name_style: "{title} {I} {LAST}"
+  free_refs: ["{month_word} FEES", "{resident_last} {month_word}", "MUM CARE", "TOP UP {month_word}"]
+  remittance_beneficiary: "{first} {LAST}"
+  remittance_beneficiary_shift: "{LAST}, {first} ({dossier})"
+  unknown_payers: [MR P HUGHES, MRS A PATEL, ACME LTD, MR D OWEN]
+
+labels:                           # Lloyds prints one description column, truncated to 18 chars
+  dd: {label: "{mandate} {invoice}", ref: ""}
+  dd_return: {label: "UNPAID DD {mandate}", ref: ""}
+  transfer: {label: "{payer_bank_name} {free_ref}", ref: ""}
+  transfer_shift: {label: "FP {payer_bank_name} {free_ref}", ref: ""}
+  bulk_remit: {label: "{payer_upper} {remittance_id}", ref: ""}
+  bulk_noremit: {label: "{payer_upper} {mon_yy}", ref: ""}
+  guardian: {label: "{payer_upper} {mon_yy}", ref: ""}
+  apa: null
+  non_ar: [{label: "INTEREST PAID", ref: ""}, {label: "INSURANCE CLAIM", ref: ""}]
+  refund: {label: "DEPOSIT REFUND", ref: ""}
+  unknown: {label: "{payer_bank_name} {free_unknown}", ref: ""}
+max_label_len: 18
+bank_types: {dd: DD, dd_return: DD, transfer: FPI, transfer_shift: FPI, bulk_remit: BGC, bulk_noremit: BGC, guardian: BGC, apa: BGC, non_ar: BGC, refund: FPO, unknown: FPI}
+
+layout:
+  invoices:
+    file: invoices.csv
+    sep: ","
+    encoding: utf-8
+    date_format: "%Y-%m-%d"
+    decimal: "."
+    thousands: ""
+    period_format: date
+    columns:
+      invoice_id: invoice_no
+      issue_date: issue_date
+      due_date: due_date
+      resident_id: resident_ref
+      resident_name: resident_name
+      facility: home
+      period: period_start
+      period_end: period_end
+      doc_type: doc_type
+      amount: amount
+      original_invoice: original_invoice
+    values: {doc_type: {invoice: INV, credit: CRN}}
+  payers:
+    file: funding.csv
+    sep: ","
+    encoding: utf-8
+    date_format: "%Y-%m-%d"
+    decimal: "."
+    strip_id_zeros_rate: 0.0
+    columns:
+      resident_id: resident_ref
+      resident_name: resident_name
+      payer_name: payer_name
+      payer_type: payer_type
+      relationship: relationship
+      share_pct: share_pct
+      mandate_ref: dd_reference
+      region: authority_area
+      resident_exit_date: discharge_date
+    values:
+      payer_type: {resident: Self-funder, family: Family top-up, public_aid: Local authority, guardian: Deputy, health_funder: NHS}
+  remittances:
+    file: remittances.csv
+    sep: ","
+    encoding: utf-8
+    date_format: "%Y-%m-%d"
+    decimal: "."
+    thousands: ""
+    period_format: "%Y-%m"
+    columns:
+      remittance_id: remittance_id
+      date: payment_date
+      payer_name: authority
+      facility: home
+      beneficiary_name: resident_name
+      period: period
+      amount: net
+      gross: gross
+      contribution: client_contribution
+  bank:
+    file_pattern: "bank/statement_{end}.csv"
+    sep: ","
+    encoding: utf-8
+    date_format: "%d/%m/%Y"
+    decimal: "."
+    thousands: ""
+    preamble: []
+    footer: null
+    amount_mode: debit_credit
+    columns: {date: Transaction Date, type: Transaction Type, sort_code: Sort Code, account: Account Number, label: Transaction Description, debit: Debit Amount, credit: Credit Amount, balance: Balance}
+    constants: {sort_code: "30-94-57", account: "01234567"}

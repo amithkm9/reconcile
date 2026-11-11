@@ -1,0 +1,22 @@
+# Client 3: a held-out schema. Same kind of business as Maple, but every export looks different.
+# It exists to catch client column names hard-coded in Python: the mapper never sees this file.
+client: client3
+base: maple
+seed: 11
+perturb:
+  sep: ";"
+  decimal: ","
+  thousands: "."
+  date_format: "%m/%d/%Y"          # only values with day > 12 reveal it is month-first
+  bank_amount_mode: signed         # one signed column instead of Debit/Credit
+  junk_column: export_batch_id
+  files: {invoices: billing_export.csv, payers: funding_sources.csv, remittances: authority_remits.csv, bank: "bank/txns_{end}.csv"}
+  rename:
+    invoices: {invoice_id: Bill Ref, issue_date: Raised On, due_date: Pay By, resident_id: Client Code, resident_name: Client, facility: Site, period: Covers From, period_end: Covers To, doc_type: Kind, amount: Total GBP, original_invoice: Against Bill}
+    payers: {resident_id: Client Code, resident_name: Client, payer_name: Funder, payer_type: Funding Stream, relationship: Relation, share_pct: Portion, mandate_ref: Mandate, region: Area, resident_exit_date: Left On}
+    remittances: {remittance_id: Remit No, date: Paid On, payer_name: Authority, facility: Site, beneficiary_name: Client, period: For Month, amount: Paid GBP, gross: Fee GBP, contribution: Assessed Charge}
+    bank: {date: Posted, label: Narrative, amount: Value, balance: Running Balance, type: Code}
+  values:
+    payer_type: {resident: SELF, family: TPT, public_aid: COUNCIL, health_funder: ICB-FNC, guardian: DEP}
+    doc_type: {invoice: BILL, credit: ADJ}
+  reorder: true

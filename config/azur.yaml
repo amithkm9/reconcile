@@ -1,0 +1,164 @@
+# Generator config for Groupe Résidences Azur (fictional, non-profit, 8 EHPADs).
+# Everything client-specific lives here: volumes, payer mix, messiness rates, file layout.
+# Rates marked ASSUMPTION have no public source; they are documented in docs/decisions.md.
+client: azur
+seed: 42
+start_month: "2025-01"
+months: 12
+n_residents: 600
+monthly_death_rate: 0.015
+post_exit_billable_days: 6        # FR: max 6 days billable after death (2022 decree)
+issue_day: 25                     # invoiced in advance on the 25th of the previous month
+due_day: 10
+dd_day: 5
+credit_note_deduction_per_day: 20.0   # forfait hospitalier deducted on hospital-stay credit notes
+
+facilities:
+  - {code: EHPAD-01, name: Les Pins, region: "13", daily_rate: 74.50}
+  - {code: EHPAD-02, name: Le Clos Fleuri, region: "13", daily_rate: 71.20}
+  - {code: EHPAD-03, name: Les Oliviers, region: "13", daily_rate: 78.90}
+  - {code: EHPAD-04, name: La Bastide, region: "83", daily_rate: 69.80}
+  - {code: EHPAD-05, name: Les Cigales, region: "83", daily_rate: 72.40}
+  - {code: EHPAD-06, name: Le Mas Bleu, region: "84", daily_rate: 70.10}
+  - {code: EHPAD-07, name: Les Lavandes, region: "84", daily_rate: 76.30}
+  - {code: EHPAD-08, name: Villa Azur, region: "13", daily_rate: 81.60}
+extra_daily_rate: 6.10            # dépendance GIR 5-6 ticket modérateur, billed to every resident
+other_region_rate: 0.25           # domicile de secours in another département
+
+public_payers:                    # aide sociale à l'hébergement, by département
+  "13": Département des Bouches-du-Rhône
+  "83": Département du Var
+  "84": Département de Vaucluse
+guardians: [UDAF 13, UDAF 83, UDAF 84]
+health_funder: null
+
+# ASSUMPTION: payment-method mix (no public data). DD dominates; the hard residue is family transfers.
+profiles:
+  - {name: dd_self, weight: 0.55, shares: [{type: resident, pct: 100, method: dd}]}
+  - {name: family_full, weight: 0.15, shares: [{type: family, pct: 100, method: transfer}]}
+  - {name: aid_split, weight: 0.15, shares: [{type: public_aid, pct: [70, 90], method: bulk}, {type: resident, pct: rest, method: dd}]}
+  - {name: dd_family, weight: 0.08, shares: [{type: resident, pct: 60, method: dd}, {type: family, pct: rest, method: transfer}]}
+  - {name: guardian, weight: 0.07, shares: [{type: guardian, pct: 100, method: guardian}]}
+
+rates:
+  dd_return: 0.02
+  family: {late: 0.15, partial: 0.08, multi_month: 0.07, unpaid: 0.04, overpay: 0.02, rounding: 0.04}
+  duplicate_payment: 0.01
+  typo: 0.08
+  ref_invoice: 0.30
+  ref_free: 0.45
+  credit_note: 0.04
+  bulk_exclusion: 0.30
+  guardian_exclusion: 0.15
+  remittance_missing: 0.20
+  remittance_late: 0.30
+  unknown_credits_per_month: 3
+  refunds_per_month: 2
+  non_ar_per_month: 2
+
+shift:                            # held-out corruption, test months only (never seen in training)
+  start_month_index: 9            # months 10-12
+  married_name_rate: 0.10
+  remittance_layout_region: "83"
+
+ids:
+  resident: "{n:06d}"
+  invoice: "FA{year}-{n:06d}"
+  credit: "AV{year}-{n:06d}"
+  mandate: "RUM-AZ-{n:06d}"
+  remittance: "AV-{region}-{year}-{n:04d}"
+
+text:
+  country: FR
+  family_relations: [fille, fils, nièce, neveu, belle-fille, gendre]
+  same_surname_rate: 0.40
+  title_rate: 0.6
+  titles: {F: MME, M: M}
+  payer_name_style: "{title} {LAST} {FIRST}"     # how the bank prints the debtor name
+  free_refs: ["{month_word} {resident_last}", "PENSION {month_word}", "EHPAD {resident_last} {month_word}", "LOYER {month_word} MAMAN", "FRAIS SEJOUR {month_word}"]
+  remittance_beneficiary: "{LAST} {first}"
+  remittance_beneficiary_shift: "D{dossier} - {first} {LAST}"
+  unknown_payers: [M LAMBERT JEAN, MME ROUX CLAIRE, SCI DES TILLEULS, M GARNIER LUC]
+
+labels:                           # bank label / reference templates per movement kind
+  dd: {label: "PRLV SEPA {mandate}", ref: "{invoice}"}
+  dd_return: {label: "REJET PRLV SEPA {mandate} AM04", ref: "{invoice}"}
+  transfer: {label: "VIR SEPA {payer_bank_name}", ref: "{free_ref}"}
+  transfer_shift: {label: "VIREMENT RECU /DE {payer_bank_name}", ref: "/MOTIF {free_ref}"}
+  bulk_remit: {label: "VIR {payer_upper}", ref: "{remittance_id}"}
+  bulk_noremit: {label: "VIR {payer_upper}", ref: "AIDE SOCIALE {mm_yyyy} {facility_upper}"}
+  guardian: {label: "VIR {payer_upper}", ref: "MANDATS {mm_yyyy}"}
+  apa: {label: "VIR {payer_upper}", ref: "APA DOTATION {mm_yyyy} {facility_upper}"}
+  non_ar: [{label: "INTERETS CREDITEURS", ref: ""}, {label: "VIR MUTUELLE ASSURANCE SINISTRE", ref: "REMB ASSURANCE"}]
+  refund: {label: "VIR SEPA EMIS {payer_bank_name}", ref: "REMB DEPOT GARANTIE"}
+  unknown: {label: "VIR SEPA {payer_bank_name}", ref: "{free_unknown}"}
+max_label_len: null
+
+layout:
+  invoices:
+    file: factures.csv
+    sep: ";"
+    encoding: utf-8-sig
+    date_format: "%d/%m/%Y"
+    decimal: ","
+    thousands: " "
+    period_format: "%m/%Y"
+    columns:
+      invoice_id: "N° Facture"
+      issue_date: "Date facture"
+      due_date: "Échéance"
+      resident_id: "Code résident"
+      resident_last: "Nom"
+      resident_first: "Prénom"
+      facility: "Établissement"
+      period: "Période"
+      doc_type: "Type"
+      amount: "Montant TTC"
+      original_invoice: "Facture d'origine"
+    values: {doc_type: {invoice: FACTURE, credit: AVOIR}}
+  payers:
+    file: payeurs.csv
+    sep: ";"
+    encoding: utf-8
+    date_format: "%d/%m/%Y"
+    decimal: ","
+    strip_id_zeros_rate: 0.3
+    columns:
+      resident_id: "Code résident"
+      resident_name: "Nom résident"
+      payer_name: "Nom payeur"
+      payer_type: "Type payeur"
+      relationship: "Lien"
+      share_pct: "Part %"
+      mandate_ref: "RUM"
+      region: "Département"
+      resident_exit_date: "Date sortie"
+    values:
+      payer_type: {resident: "Résident", family: "Famille", public_aid: "Aide sociale (Département)", guardian: "Tuteur / UDAF", health_funder: "Assurance Maladie"}
+  remittances:
+    file: avis_paiement.csv
+    sep: ";"
+    encoding: utf-8
+    date_format: "%d/%m/%Y"
+    decimal: ","
+    thousands: " "
+    period_format: "%m/%Y"
+    columns:
+      remittance_id: "N° avis"
+      date: "Date avis"
+      payer_name: "Payeur"
+      facility: "Établissement"
+      beneficiary_name: "Bénéficiaire"
+      period: "Période"
+      amount: "Montant"
+  bank:
+    file_pattern: "bank/releve_{end}.csv"
+    sep: ";"
+    encoding: cp1252
+    date_format: "%d/%m/%Y"
+    decimal: ","
+    thousands: " "
+    preamble: ["Compte courant;FR76 3000 4000 0312 3456 7890 143", "Période du {start} au {end};"]
+    footer: "Solde au {end};;;;;{balance}"
+    amount_mode: debit_credit
+    columns: {date: "Date opération", value_date: "Date valeur", label: "Libellé", reference: "Référence", debit: "Débit", credit: "Crédit"}

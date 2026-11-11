@@ -1,0 +1,49 @@
+# Generator-only header pool for the mapping eval. Deliberately disjoint from the mapper's
+# synonyms file (reconcile/mapping/synonyms.yaml): if the eval reused the mapper's own vocabulary,
+# 100% accuracy would prove nothing.
+headers:
+  invoices:
+    invoice_id: [Doc No, Document Number, Bill Number, Num Doc, Billing Ref, Inv#]
+    issue_date: [Doc Date, Date Issued, Billed On, Creation Date, Posting Date]
+    due_date: [Payable By, Deadline, Settlement Date, Expected Payment, Date Limite]
+    resident_id: [Patient Code, Occupant ID, Customer No, Account Ref, Dossier]
+    resident_name: [Occupant, Customer Name, Patient Name, Beneficiary, Account Holder]
+    facility: [Location, Unit, Establishment, Branch, Care Site]
+    period: [Billing Month, Month Covered, Service Month, Start Of Period]
+    doc_type: [Document Type, Doc Kind, Category, Entry Type]
+    amount: [Grand Total, Amount Incl Tax, Total Due, Gross Amount, Net Payable]
+    original_invoice: [Linked Doc, Relates To, Corrects, Parent Doc]
+  payers:
+    resident_id: [Patient Code, Occupant ID, Customer No, Account Ref]
+    resident_name: [Occupant, Customer Name, Patient Name]
+    payer_name: [Paid By, Contributor, Sponsor, Bill To]
+    payer_type: [Contributor Kind, Sponsor Category, Source Of Funds, Funding Category]
+    share_pct: [Split %, Proportion, Ratio, Contribution Rate]
+    mandate_ref: [Mandate Id, DD Ref, Debit Agreement, Collection Ref]
+    resident_exit_date: [End Date, Moved Out, Departure, Deceased On]
+  remittances:
+    remittance_id: [Advice No, Statement Ref, Batch Ref, Notice Id]
+    date: [Value Date, Remitted On, Settlement On]
+    payer_name: [Paying Body, Council Name, Commissioner]
+    beneficiary_name: [Service User, Person Supported, Recipient]
+    period: [Covered Month, Service Period, Month Of Care]
+    amount: [Amount Remitted, Paid Amount, Settlement Value]
+  bank:
+    date: [Booking Date, Entry Date, Op Date, Trans Date]
+    label: [Details, Particulars, Memo, Narrative Text]
+    amount: [Movement, Signed Amount, Net Change]
+    debit: [Money Out, Withdrawals, Outflow]
+    credit: [Money In, Deposits, Inflow]
+seps: [",", ";", "\t", "|"]
+number_styles: [{decimal: ".", thousands: ""}, {decimal: ",", thousands: "."}, {decimal: ",", thousands: " "}, {decimal: ".", thousands: ","}]
+date_formats: ["%d/%m/%Y", "%m/%d/%Y", "%Y-%m-%d", "%d.%m.%Y", "%d-%m-%Y"]
+bank_amount_modes: [debit_credit, signed]
+payer_type_vocab:
+  resident: [PRIVATE, OWN FUNDS, SELF PAY, PATIENT]
+  family: [RELATIVE, NEXT OF KIN, KIN CONTRIBUTION, TPT]
+  public_aid: [COUNCIL, COUNTY, MUNICIPAL, SOCIAL SERVICES]
+  guardian: [DEP, ATTORNEY, TRUSTEE]
+  health_funder: [ICB-FNC, NURSING CONTRIBUTION, CHC FUNDING]
+doc_type_vocab:
+  invoice: [BILL, DEBIT, CHARGE, STD]
+  credit: [ADJ, REFUND NOTE, CR, REVERSAL]
