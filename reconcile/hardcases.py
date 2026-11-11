@@ -18,10 +18,11 @@ from reconcile.decide import Thresholds
 from reconcile.ids import bank_line_hash
 from reconcile.ledger import Ledger
 from reconcile.mapping.template import ClientData
+from reconcile.paths import REPORTS, ROOT
 from reconcile.scorer import RulesScorer
 from reconcile.state import run_week
 
-HARD_CASES = Path("eval/hard_cases.yaml")
+HARD_CASES = ROOT / "eval" / "hard_cases.yaml"
 FIXED = Thresholds(auto=0.95, review=0.30, certified_lb=0.0, n_at_auto=0, k_at_auto=0)
 
 
@@ -206,7 +207,7 @@ def check(case: dict, result: dict) -> list[str]:
     return problems
 
 
-def write_report(out: Path = Path("reports/hard_cases.md")) -> int:
+def write_report(out: Path = REPORTS / "hard_cases.md") -> int:
     """Run every case and write a table of what the system did; returns the number of failures."""
     spec = load_cases()
     rows, failures = [], 0
