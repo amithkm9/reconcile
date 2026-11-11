@@ -7,7 +7,7 @@
    "accuracy": 1.0,
    "wrong": []
   },
-  "fallback_seconds": 0.78,
+  "fallback_seconds": 0.87,
   "fallback_flags": 0,
   "fallback_loads": true,
   "claude-sonnet-5-5": "not run (no API key, no cached responses)",
@@ -21,7 +21,7 @@
    "accuracy": 1.0,
    "wrong": []
   },
-  "fallback_seconds": 0.51,
+  "fallback_seconds": 0.57,
   "fallback_flags": 0,
   "fallback_loads": true,
   "claude-sonnet-5-5": "not run (no API key, no cached responses)",
@@ -35,7 +35,7 @@
    "accuracy": 1.0,
    "wrong": []
   },
-  "fallback_seconds": 0.68,
+  "fallback_seconds": 0.75,
   "fallback_flags": 2,
   "fallback_loads": true,
   "claude-sonnet-5-5": "not run (no API key, no cached responses)",
@@ -137,7 +137,7 @@
     "remittances.remittance_id"
    ]
   },
-  "fallback_seconds": 0.1,
+  "fallback_seconds": 0.09,
   "fallback_flags": 6,
   "fallback_loads": false,
   "fallback_load_error": "export_a.csv: template maps no resident name column",
@@ -269,7 +269,7 @@
     "bank.amount_mode"
    ]
   },
-  "fallback_seconds": 0.12,
+  "fallback_seconds": 0.11,
   "fallback_flags": 5,
   "fallback_loads": false,
   "fallback_load_error": "bank: template does not map required field(s) ['amount']",
