@@ -12,11 +12,15 @@ import datetime as dt
 import io
 import re
 from collections import Counter
-from dataclasses import asdict, dataclass, field
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
+import yaml
+
 from reconcile.mapping.template import parse_amount
-from reconcile.normalize import _month_lookup, norm_text, vocab
+from reconcile.normalize import month_lookup, norm_text, vocab
 
 DATE_FORMATS = ["%d/%m/%Y", "%m/%d/%Y", "%Y-%m-%d", "%d.%m.%Y", "%d-%m-%Y", "%Y/%m/%d"]
 PERIOD_FORMATS = ["%m/%Y", "%Y-%m", "%m-%Y"]
@@ -49,9 +53,6 @@ class FileProfile:
     skip_footer: int
     n_rows: int
     columns: list[ColumnProfile]
-
-    def as_dict(self) -> dict:
-        return asdict(self)
 
 
 def _decode(raw: bytes) -> tuple[str, str]:
@@ -123,7 +124,7 @@ def _parses(values, fmt) -> float:
     return ok / len(values)
 
 
-def _number_style(values: list[str]) -> tuple[str | None, float]:
+def _number_style(values: list[str]) -> tuple[str, float]:
     """Decimal separator from the values: '1 234,56' / '1.234,56' -> ','; '1,234.56' / '12.30' -> '.'."""
     comma = dot = 0
     for v in values:
@@ -136,28 +137,49 @@ def _number_style(values: list[str]) -> tuple[str | None, float]:
     return dec, ok / len(values)
 
 
-_KEEP_WORDS = None
+@lru_cache(maxsize=1)
+def _keep_words() -> frozenset[str]:
+    """Words safe to show an LLM: generic vocabulary, months, accounting keywords, and every word
+    of the mapper's header/value synonyms. Anything else alphabetic may be a person's name."""
+    voc = vocab()
+    syn = yaml.safe_load(Path(__file__).with_name("synonyms.yaml").read_text(encoding="utf-8"))
+    words: set[str] = set()
+    for group in (syn["roles"], *syn["fields"].values(), *syn["values"].values()):
+        for phrases in group.values():
+            for phrase in phrases:
+                words |= set(norm_text(phrase).split())
+    return frozenset(
+        words
+        | set(voc["stopwords"])
+        | set(voc["titles"])
+        | set(month_lookup())
+        | set(voc["non_ar_keywords"])
+        | set(voc["return_keywords"])
+    )
+
+
+def _mask_token(tok: str) -> str:
+    if set(norm_text(tok).split()) <= _keep_words():
+        return tok
+    # Letter runs of 4+ that are not vocabulary are masked, inside codes too ("DUPONT01" ->
+    # "<A>01"). Shorter runs ("FA", "INV", "TPT") are kept: they are the identifier and category
+    # shapes the model needs. Residual risk: a person name of 3 letters or fewer stays visible.
+    return re.sub(
+        r"[A-Za-zÀ-ÿ]{4,}",
+        lambda m: m.group() if norm_text(m.group()) in _keep_words() else "<A>",
+        tok,
+    )
 
 
 def mask_value(v: str) -> str:
-    """Hide person names: keep noise words, months, keywords and anything with a digit."""
-    global _KEEP_WORDS
-    if _KEEP_WORDS is None:
-        voc = vocab()
-        _KEEP_WORDS = (
-            set(voc["stopwords"])
-            | set(voc["titles"])
-            | set(_month_lookup())
-            | set(voc["non_ar_keywords"])
-            | set(voc["return_keywords"])
-        )
-    out = []
-    for tok in re.split(r"(\s+)", v):
-        if not tok.strip() or any(c.isdigit() for c in tok) or norm_text(tok) in _KEEP_WORDS:
-            out.append(tok)
-        else:
-            out.append("<A>")
-    return "".join(out)
+    """Hide anything that could be a person's name: keep vocabulary words, months, keywords and
+    identifier shapes; replace other words (and long letter runs inside codes) with <A>."""
+    return "".join(tok if not tok.strip() else _mask_token(tok) for tok in re.split(r"(\s+)", v))
+
+
+def _form(v: str) -> str:
+    """The form of a value without the value: '20-45-67' -> '99-99-99'."""
+    return re.sub(r"[A-Za-zÀ-ÿ]", "A", re.sub(r"\d", "9", v))
 
 
 def profile_column(name: str, values: list[str]) -> ColumnProfile:
@@ -171,7 +193,8 @@ def profile_column(name: str, values: list[str]) -> ColumnProfile:
     if not nonblank:
         return cp
     if distinct == 1 and len(nonblank) >= 20:
-        cp.kind, cp.samples = "constant", nonblank[:1]  # account numbers, sort codes: never money
+        # account numbers, sort codes: never money, and only their shape is shown
+        cp.kind, cp.samples = "constant", [_form(nonblank[0])]
         return cp
     sample = nonblank[:: max(1, len(nonblank) // 600)][
         :600
@@ -191,7 +214,7 @@ def profile_column(name: str, values: list[str]) -> ColumnProfile:
     elif pfmts:
         cp.kind, cp.date_formats = "period", pfmts
     elif num_ok >= 0.98 and alpha == 0:
-        vals = [parse_amount(v, dec) for v in sample]
+        vals = [x for x in (parse_amount(v, dec) for v in sample) if x is not None]
         cp.decimal = dec
         cp.negative_rate = round(sum(x < 0 for x in vals) / len(vals), 3)
         small = all(0 <= x <= 10000 for x in vals)  # cents: 0..100.00
@@ -217,17 +240,19 @@ def profile_column(name: str, values: list[str]) -> ColumnProfile:
         cp.pattern = id_pattern(nonblank)
     if cp.kind == "category":
         cp.categories = [c for c, _ in Counter(nonblank).most_common(12)]
+    # `categories` stay raw: the local mapper needs them to map values. `samples` are what an
+    # LLM sees, so every value that can carry words is masked, category values included (a
+    # surname column with few distinct values looks like a category).
     show = cp.categories if cp.kind == "category" else nonblank[:5]
     cp.samples = [
-        v if cp.kind in ("date", "period", "number", "percent", "id", "category") else mask_value(v)
-        for v in show
+        v if cp.kind in ("date", "period", "number", "percent") else mask_value(v) for v in show
     ]
     return cp
 
 
 def read_table(path: Path) -> tuple[FileProfile, list[str], list[list[str]]]:
     text, enc = _decode(Path(path).read_bytes())
-    text = text.lstrip("﻿")
+    text = text.lstrip("\ufeff")
     lines = text.splitlines()
     sep, header, footer, width = _dialect(lines)
     body_lines = lines[header : len(lines) - footer if footer else None]
@@ -267,7 +292,7 @@ def _date_column(body: list[list[str]], width: int) -> int | None:
     return None
 
 
-def profile_file(path: Path, extra_paths: list[Path] = ()) -> FileProfile:
+def profile_file(path: Path, extra_paths: Sequence[Path] = ()) -> FileProfile:
     fp, head, body = read_table(path)
     for p in list(extra_paths)[:3]:  # periodic exports: profile a few files together
         _, h2, b2 = read_table(p)
