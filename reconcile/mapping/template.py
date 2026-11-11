@@ -20,8 +20,8 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from reconcile.entities import validate_frame
-from reconcile.ids import bank_line_hash
+from reconcile.entities import PayerType, validate_frame
+from reconcile.ids import bank_line_hash, norm_label
 from reconcile.normalize import norm_id, norm_text
 
 MAX_PARSE_FAILURE = 0.02
@@ -67,7 +67,7 @@ def load_template(path: Path) -> dict:
 def read_raw(path: Path, spec: dict) -> pd.DataFrame:
     """Read one CSV as strings, skipping preamble/footer rows the template declares."""
     text = path.read_bytes().decode(spec.get("encoding", "utf-8"))
-    text = text.lstrip("﻿")
+    text = text.lstrip("\ufeff")
     lines = text.splitlines()
     skip_top, skip_bottom = spec.get("skip_rows", 0), spec.get("skip_footer", 0)
     lines = lines[skip_top : len(lines) - skip_bottom if skip_bottom else None]
@@ -105,11 +105,8 @@ def parse_amount(s: str, decimal: str) -> int | None:
     if not s:
         return None
     neg = s.startswith("-") or s.endswith("-") or (s.startswith("(") and s.endswith(")"))
-    s = re.sub(r"[\s  ()+\-]", "", s)
-    if decimal == ",":
-        s = s.replace(".", "").replace(",", ".")
-    else:
-        s = s.replace(",", "")
+    s = re.sub("[\\s\u00a0\u202f()+\\-]", "", s)
+    s = s.replace(".", "").replace(",", ".") if decimal == "," else s.replace(",", "")
     try:
         cents = round(float(s) * 100)
     except ValueError:
@@ -143,7 +140,15 @@ def _check_failures(
         )
 
 
-def _dates(df, spec, field, path, allow_blank=False):
+def _req(df: pd.DataFrame, spec: dict, field: str, path: Path) -> pd.Series:
+    """A column the loader cannot do without: missing from the template is a template error."""
+    col = _col(df, spec, field, path)
+    if col is None:
+        raise TemplateError(f"{path.name}: the template does not map required field '{field}'")
+    return col
+
+
+def _dates(df: pd.DataFrame, spec: dict, field: str, path: Path, allow_blank: bool = False) -> list:
     raw = _col(df, spec, field, path)
     if raw is None:
         return [None] * len(df)
@@ -152,8 +157,8 @@ def _dates(df, spec, field, path, allow_blank=False):
     return parsed
 
 
-def _amounts(df, spec, field, path):
-    raw = _col(df, spec, field, path)
+def _amounts(df: pd.DataFrame, spec: dict, field: str, path: Path) -> list:
+    raw = _req(df, spec, field, path)
     parsed = [parse_amount(v, spec.get("decimal", ".")) for v in raw]
     _check_failures(path, field, raw, parsed)
     return parsed
@@ -187,14 +192,14 @@ def _load_invoices(path: Path, spec: dict) -> pd.DataFrame:
     df = read_raw(path, spec)
     n = len(df)
     pf = spec.get("period_format", "date")
-    period_raw = _col(df, spec, "period", path)
+    period_raw = _req(df, spec, "period", path)
     periods = [parse_period(v, pf, spec["date_format"]) for v in period_raw]
     _check_failures(path, "period", period_raw, periods)
     orig = _col(df, spec, "original_invoice", path)
     out = pd.DataFrame(
         {
-            "invoice_id": _col(df, spec, "invoice_id", path).str.upper(),
-            "resident_id": [norm_id(v) for v in _col(df, spec, "resident_id", path)],
+            "invoice_id": _req(df, spec, "invoice_id", path).str.upper(),
+            "resident_id": [norm_id(v) for v in _req(df, spec, "resident_id", path)],
             "resident_name": _col(df, spec, "resident_name", path),
             "facility": _col(df, spec, "facility", path),
             "issue_date": _dates(df, spec, "issue_date", path),
@@ -220,16 +225,16 @@ def _load_payers(path: Path, spec: dict) -> pd.DataFrame:
     _check_required("payers", spec, path)
     df = read_raw(path, spec)
     n = len(df)
-    pct_raw = _col(df, spec, "share_pct", path)
+    pct_raw = _req(df, spec, "share_pct", path)
     pcts = [parse_amount(v, spec.get("decimal", ".")) for v in pct_raw]
     _check_failures(path, "share_pct", pct_raw, pcts)
     mandate = _col(df, spec, "mandate_ref", path)
     rname = _col(df, spec, "resident_name", path)
     return pd.DataFrame(
         {
-            "resident_id": [norm_id(v) for v in _col(df, spec, "resident_id", path)],
+            "resident_id": [norm_id(v) for v in _req(df, spec, "resident_id", path)],
             "resident_name": rname if rname is not None else [""] * n,
-            "payer_name": _col(df, spec, "payer_name", path),
+            "payer_name": _req(df, spec, "payer_name", path),
             "payer_type": _values(
                 _col(df, spec, "payer_type", path),
                 spec.get("values", {}).get("payer_type"),
@@ -248,17 +253,17 @@ def _load_remittances(path: Path, spec: dict) -> pd.DataFrame:
     df = read_raw(path, spec)
     n = len(df)
     pf = spec.get("period_format", "date")
-    period_raw = _col(df, spec, "period", path)
+    period_raw = _req(df, spec, "period", path)
     periods = [parse_period(v, pf, spec["date_format"]) for v in period_raw]
     _check_failures(path, "period", period_raw, periods)
     fac = _col(df, spec, "facility", path)
     return pd.DataFrame(
         {
-            "remittance_id": _col(df, spec, "remittance_id", path).str.upper(),
+            "remittance_id": _req(df, spec, "remittance_id", path).str.upper(),
             "date": _dates(df, spec, "date", path),
-            "payer_name": _col(df, spec, "payer_name", path),
+            "payer_name": _req(df, spec, "payer_name", path),
             "facility": fac if fac is not None else [""] * n,
-            "beneficiary_name": _col(df, spec, "beneficiary_name", path),
+            "beneficiary_name": _req(df, spec, "beneficiary_name", path),
             "period": periods,
             "amount_cents": _amounts(df, spec, "amount", path),
         }
@@ -270,8 +275,8 @@ def _load_bank_file(path: Path, spec: dict) -> pd.DataFrame:
     n = len(df)
     dates = _dates(df, spec, "date", path)
     if spec.get("amount_mode", "debit_credit") == "debit_credit":
-        deb = [parse_amount(v, spec.get("decimal", ".")) for v in _col(df, spec, "debit", path)]
-        cre = [parse_amount(v, spec.get("decimal", ".")) for v in _col(df, spec, "credit", path)]
+        deb = [parse_amount(v, spec.get("decimal", ".")) for v in _req(df, spec, "debit", path)]
+        cre = [parse_amount(v, spec.get("decimal", ".")) for v in _req(df, spec, "credit", path)]
         amounts = [
             (c or 0) - abs(d or 0) if (c is not None or d is not None) else None
             for d, c in zip(deb, cre, strict=True)
@@ -279,21 +284,26 @@ def _load_bank_file(path: Path, spec: dict) -> pd.DataFrame:
         _check_failures(path, "debit/credit", pd.Series(["x"] * n), amounts)
     else:
         amounts = _amounts(df, spec, "amount", path)
-    labels = _col(df, spec, "label", path)
+    labels = _req(df, spec, "label", path)
     ref = _col(df, spec, "reference", path)
     refs = ref if ref is not None else pd.Series([""] * n)
     out = pd.DataFrame(
         {"date": dates, "label": labels.values, "reference": refs.values, "amount_cents": amounts}
     )
+    # Rows whose date or amount did not parse (at most 2%, or loading already failed) cannot be
+    # hashed or matched: drop them rather than import a line with no date or a float amount.
+    out = out[out["date"].notna() & out["amount_cents"].notna()].reset_index(drop=True)
+    out["amount_cents"] = out["amount_cents"].astype("int64")
     seen: dict[tuple, int] = {}
     hashes = []
     for d, c, lab, r in zip(
         out["date"], out["amount_cents"], out["label"], out["reference"], strict=True
     ):
-        k = (d, c, lab, r)
+        # count repeats on the same normalised text the hash uses, so twins stay distinct
+        k = (d, c, norm_label(lab), norm_label(r))
         occ = seen.get(k, 0)
         seen[k] = occ + 1
-        hashes.append(bank_line_hash(d.isoformat(), c, lab, r, occ))
+        hashes.append(bank_line_hash(d.isoformat(), int(c), lab, r, occ))
     out["bank_hash"] = hashes
     out["file_end"] = max(d for d in dates if d)
     out["source_file"] = path.name
@@ -317,13 +327,20 @@ def _sanity(payers: pd.DataFrame, bank: pd.DataFrame) -> None:
         )
 
 
-def load_client(template: dict | Path, data_dir: Path, validate: bool = True) -> ClientData:
+def _inside(data_dir: Path, pattern: str, kind: str) -> str:
+    """A template (possibly proposed by an LLM) may only name files inside the client's folder."""
+    if Path(pattern).is_absolute() or ".." in Path(pattern).parts:
+        raise TemplateError(f"{kind}: path {pattern!r} must be relative and inside {data_dir}")
+    return pattern
+
+
+def load_client(template: dict | Path, data_dir: Path) -> ClientData:
     tpl = load_template(template) if isinstance(template, Path | str) else template
     files = tpl["files"]
     data_dir = Path(data_dir)
 
     def one(kind: str) -> Path:
-        p = data_dir / files[kind]["path"]
+        p = data_dir / _inside(data_dir, files[kind]["path"], kind)
         if not p.exists():
             raise TemplateError(f"{kind}: expected file {p} not found")
         return p
@@ -332,7 +349,7 @@ def load_client(template: dict | Path, data_dir: Path, validate: bool = True) ->
     payers = _load_payers(one("payers"), files["payers"])
     remittances = _load_remittances(one("remittances"), files["remittances"])
     _check_required("bank", files["bank"], data_dir)
-    bank_files = sorted(data_dir.glob(files["bank"]["path"]))
+    bank_files = sorted(data_dir.glob(_inside(data_dir, files["bank"]["path"], "bank")))
     if not bank_files:
         raise TemplateError(f"bank: no files match {files['bank']['path']}")
     bank = pd.concat([_load_bank_file(p, files["bank"]) for p in bank_files], ignore_index=True)
@@ -342,16 +359,22 @@ def load_client(template: dict | Path, data_dir: Path, validate: bool = True) ->
         .reset_index(drop=True)
     )
     _sanity(payers, bank)
-    if validate:  # contract check on a sample: fast, and enough to catch a wrong template
-        for kind, frame in (
-            ("invoices", invoices),
-            ("payers", payers),
-            ("remittances", remittances),
-        ):
-            validate_frame(frame.head(300), kind)
-        validate_frame(
-            bank[["bank_hash", "date", "label", "reference", "amount_cents"]].head(300), "bank"
-        )
+    # Category values are checked on every row (cheap, and a wrong value map would change which
+    # reminders go out); the full field-by-field contract on a sample of each file.
+    for col, frame, allowed in (
+        ("payer_type", payers, set(PayerType.__args__)),
+        ("doc_type", invoices, {"invoice", "credit"}),
+    ):
+        bad = sorted(set(frame[col]) - allowed)
+        if bad:
+            raise TemplateError(
+                f"{col}: unmapped values {bad[:5]}; add them to the template's values"
+            )
+    for kind, frame in (("invoices", invoices), ("payers", payers), ("remittances", remittances)):
+        validate_frame(frame.head(300), kind)
+    validate_frame(
+        bank[["bank_hash", "date", "label", "reference", "amount_cents"]].head(300), "bank"
+    )
     return ClientData(
         tpl["client"], tpl, invoices, payers, remittances, bank, tpl.get("language", "en")
     )
