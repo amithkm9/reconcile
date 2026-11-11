@@ -38,8 +38,8 @@ app:             ## Streamlit review queue + reminder approval on the saved stat
 test:
 	uv run pytest
 
-lint:
-	uv run ruff check . && uv run ruff format --check .
+lint:            ## ruff (lint + format) and ty (types)
+	uv run ruff check . && uv run ruff format --check . && uv run ty check
 
 all: data
 	for c in azur maple client3; do $(MAKE) eval CLIENT=$$c SCORER=rules || exit 1; done
