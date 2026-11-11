@@ -1,7 +1,7 @@
 [project]
 name = "reconcile"
 version = "0.1.0"
-description = "Payment-to-invoice matching agent for care-home groups (synthetic data, measured with ground truth)"
+description = "Bank-to-invoice matching (lettrage) and safe dunning for care-home groups, measured against exact ground truth"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -15,10 +15,15 @@ dependencies = [
     "scikit-learn>=1.5",
     "scipy>=1.12",
     "streamlit>=1.35",
+    "threadpoolctl>=3.8.0",
 ]
 
 [dependency-groups]
-dev = ["pytest>=8.0", "ruff>=0.6"]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "ty>=0.0.101",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -32,8 +37,17 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
-ignore = ["E501"]
+select = ["E", "F", "I", "B", "UP", "SIM", "C4", "ARG", "RUF", "PERF", "T20"]
+ignore = ["E501", "RUF005", "PERF401", "PERF403"]  # style-only loop rewrites
+
+[tool.ruff.lint.per-file-ignores]
+# command-line entry points print their results
+"reconcile/pipeline.py" = ["T20"]
+"reconcile/generate/__main__.py" = ["T20"]
+"reconcile/mapping/onboard.py" = ["T20"]
+"reconcile/hardcases.py" = ["T20"]
+"reconcile/experiments.py" = ["T20"]
+"reconcile/llm.py" = ["T20"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
