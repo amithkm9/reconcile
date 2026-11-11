@@ -85,7 +85,8 @@ flowchart TD
     H --> B
     B -- no --> X["Run fails"]
     B -- yes --> M["Reminders · audit log · lettrage export"]
-    classDef good fill:#e8f1f8,stroke:#1f5f8b,color:#1b1f24
+    classDef default fill:#f3f8fc,stroke:#1f5f8b,color:#1b1f24
+    classDef good fill:#dbe9f5,stroke:#1f5f8b,color:#1b1f24
     classDef stop fill:#fdecea,stroke:#c0392b,color:#1b1f24
     class A,M good
     class X stop
@@ -96,8 +97,9 @@ A reminder goes out only after every hold has been checked, and a person approve
 ```mermaid
 flowchart LR
     O["Payer's share<br/>15+ days overdue"] --> H{"Any hold?"}
-    H -- "review pending · cash that could be theirs ·<br/>direct debit just returned · resident deceased" --> W["Held, with<br/>the reason shown"]
-    H -- none --> D["Draft reminder"] --> P["Approved by a person<br/>(never sent automatically)"]
+    H -- yes --> W["Held, reason shown:<br/>review pending · cash that could be theirs ·<br/>direct debit returned · resident deceased"]
+    H -- no --> D["Draft"] --> P["Person approves<br/>never auto-sent"]
+    classDef default fill:#f3f8fc,stroke:#1f5f8b,color:#1b1f24
 ```
 
 ## Results
@@ -199,6 +201,7 @@ flowchart LR
     E["Client's raw exports<br/>bank · invoices · payers · statements"] --> P["Profiler + mapper<br/>propose a YAML template"]
     P --> H{"Person confirms<br/>the flagged guesses"}
     H --> V["Load with drift and<br/>data-quality checks"]
+    classDef default fill:#f3f8fc,stroke:#1f5f8b,color:#1b1f24
 ```
 
 Client 3 has different headers, a signed amount instead of debit/credit columns, other category codes and a junk column. `make onboard` proposes a template and flags what it inferred from the data rather than from headers, for a human to confirm:
