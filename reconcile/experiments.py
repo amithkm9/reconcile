@@ -28,7 +28,7 @@ from reconcile.mapping import propose_fallback, propose_llm
 from reconcile.mapping.profile import read_table
 from reconcile.mapping.template import TemplateError, load_client
 from reconcile.paths import REPORTS, ROOT, client_paths
-from reconcile.plots import fmt_pct, plot_feedback, plot_sweep
+from reconcile.plots import fmt_pct, plot_feedback, plot_outcomes, plot_sweep
 from reconcile.review import SimReviewer
 from reconcile.scorer import GBMScorer, RulesScorer
 from reconcile.state import run_week
@@ -192,7 +192,6 @@ def mapping_eval(
 
 def write_mapping_report(results: list[dict], out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "mapping_eval.json").write_text(json.dumps(results, indent=1, default=str))
     total = sum(r["fallback"]["decisions"] for r in results)
     ok = sum(r["fallback"]["correct"] for r in results)
     loads = sum(r["fallback_loads"] for r in results)
@@ -426,9 +425,21 @@ def replot_feedback(client: str = "azur", out_dir: Path = REPORTS) -> None:
     plot_feedback(curve, out_dir / f"feedback_{client}.png")
 
 
+def write_outcomes_chart(out_dir: Path = REPORTS) -> Path:
+    """reports/outcomes.png from the three clients' rules metrics (run after `make eval`)."""
+    labels = {"azur": "Azur (FR)", "maple": "Maple (UK)", "client3": "Client 3 (UK)"}
+    metrics = {
+        label: json.loads((out_dir / f"metrics_{c}_rules.json").read_text())
+        for c, label in labels.items()
+    }
+    path = out_dir / "outcomes.png"
+    plot_outcomes(metrics, path)
+    return path
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("what", choices=["mapping", "sweep", "feedback", "replot"])
+    ap.add_argument("what", choices=["mapping", "sweep", "feedback", "replot", "outcomes"])
     ap.add_argument("--client", default="azur")
     ap.add_argument("--scorer", default="rules")
     a = ap.parse_args()
@@ -440,6 +451,8 @@ def main() -> None:
         noise_sweep(client=a.client, scorer=a.scorer)
     elif a.what == "replot":
         replot_feedback(a.client)
+    elif a.what == "outcomes":
+        write_outcomes_chart()
     else:
         feedback_loop(client=a.client)
 

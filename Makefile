@@ -45,6 +45,7 @@ all: data
 	for c in azur maple client3; do $(MAKE) eval CLIENT=$$c SCORER=rules || exit 1; done
 	$(MAKE) mapping-eval
 	$(MAKE) hard-cases
+	$(PY) -m reconcile.experiments outcomes
 
 experiments:     ## the slower reports: learned model on all 3 clients, noise sweep, feedback loop
 	for c in azur maple client3; do $(MAKE) eval CLIENT=$$c SCORER=model || exit 1; done
