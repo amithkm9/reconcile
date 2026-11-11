@@ -23,8 +23,11 @@ def apply_decision(
     actor: str = "human",
     audit: AuditLog | None = None,
 ) -> bool:
-    """Apply one review action. Returns False, posting nothing, if the picked invoices no longer fit."""
+    """Apply one review action. Returns False, changing nothing, if the line was already resolved
+    (a stale screen, a second click) or if the picked invoices no longer fit."""
     dec = L.decisions[bank_hash]
+    if dec.get("final") or dec.get("posted") or dec.get("outcome") != "review":
+        return False
     options = [dec["top"]] + dec.get("alts", [])
     if action == "accept":
         picked = options[0]
