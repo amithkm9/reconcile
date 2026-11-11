@@ -64,7 +64,11 @@ def name_part(label: str, ref: str = "") -> str:
 
 def month_tokens(text: str) -> set[int]:
     """Month numbers mentioned as words ('MARS', 'FEB') or as MM/YYYY."""
-    found = {_month_lookup()[t] for t in tokens(text) if t in _month_lookup()}
+    found = set()
+    for t in tokens(text):
+        word = re.sub(r"\d{2}$", "", t) if re.fullmatch(r"[A-Z]+\d{2}", t) else t  # 'MAR25'
+        if word in _month_lookup():
+            found.add(_month_lookup()[word])
     for mm in re.findall(r"\b(0?[1-9]|1[0-2])[/-](?:20)?\d{2}\b", text or ""):
         found.add(int(mm))
     return found

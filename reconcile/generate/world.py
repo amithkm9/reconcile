@@ -16,7 +16,12 @@ from pathlib import Path
 
 import yaml
 
-from reconcile.alloc_rules import allocate_with_reference, split_shares
+from reconcile.alloc_rules import (
+    SETTLE_TOLERANCE_CENTS,
+    allocate_with_reference,
+    payer_identity,
+    split_shares,
+)
 from reconcile.normalize import norm_text, payer_key
 
 _NAMES = yaml.safe_load(Path(__file__).with_name("names.yaml").read_text(encoding="utf-8"))
@@ -37,13 +42,7 @@ MONTH_WORDS = {
     ],
     "UK": ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"],
 }
-PRIVATE_TYPES = {"resident", "family"}
 
-
-def payer_identity(pkey: str, ptype: str, resident_id: str) -> str:
-    """Private payers are scoped to their resident (two 'Marie Martin' are two people);
-    public bodies and guardians are one payer across many residents."""
-    return f"{pkey}@{resident_id}" if ptype in PRIVATE_TYPES else pkey
 
 
 @dataclass
@@ -114,6 +113,7 @@ class Line:
     shift_tag: str = ""
     month_index: int = 0
     seq: int = 0
+    share_edges: list[tuple[str, int]] = field(default_factory=list)
 
 
 @dataclass
@@ -621,7 +621,7 @@ class _Gen:
                 avail = [
                     (x.key, open_cents[x.key])
                     for x in by_payer[s.pid]
-                    if x.invoice.issue <= it["date"] and open_cents[x.key] > 0
+                    if x.invoice.issue <= it["date"] and open_cents[x.key] > SETTLE_TOLERANCE_CENTS
                 ]
                 refd = [a for a in avail if it.get("ref") and a[0].startswith(it["ref"] + "|")]
                 edges, residual = allocate_with_reference(it["cents"], refd, avail)
@@ -666,18 +666,9 @@ class _Gen:
             )
         ctx, tkind, tag = self._context(it, mi)
         cls = "ar" if edges else "unapplied"
-        return Line(
-            it["date"],
-            it["cents"],
-            tkind,
-            ctx,
-            cls,
-            mt,
-            sorted(inv_edges.items()),
-            residual,
-            tag,
-            mi,
-        )
+        line = Line(it["date"], it["cents"], tkind, ctx, cls, mt, sorted(inv_edges.items()), residual, tag, mi)
+        line.share_edges = sorted(edges)
+        return line
 
     def _share_index(self) -> dict[str, Share]:
         if not hasattr(self, "_sidx"):

@@ -1,0 +1,16 @@
+# Reminder drafts. Language data, not client data. Placeholders are filled locally; when an LLM
+# drafts text it only ever sees these placeholders, never the real names.
+fr:
+  private:
+    1: "Madame, Monsieur,\nSauf erreur de notre part, la facture {invoice_id} ({period}) de {resident_name} à {facility}, échue le {due_date}, présente un solde de {open_amount}. Si le règlement est en cours, merci de ne pas tenir compte de ce message. Notre équipe reste à votre disposition pour toute question ou pour convenir d'un échéancier.\nBien cordialement,\nService facturation"
+    2: "Madame, Monsieur,\nNous revenons vers vous au sujet de la facture {invoice_id} ({period}) de {resident_name}, dont le solde de {open_amount} reste à régler depuis le {due_date}. Nous comprenons que les démarches peuvent prendre du temps : n'hésitez pas à nous appeler pour trouver une solution adaptée (échéancier, aide sociale).\nBien cordialement,\nService facturation"
+    3: "Madame, Monsieur,\nMalgré nos précédents courriers, la facture {invoice_id} ({period}) de {resident_name} présente toujours un solde de {open_amount} (échéance {due_date}). Nous vous proposons un rendez-vous avec la direction de l'établissement afin de convenir ensemble d'une solution.\nBien cordialement,\nService facturation"
+  public:
+    1: "Objet : suivi de règlement - {resident_name}, période {period}\nMadame, Monsieur,\nNous n'avons pas identifié à ce jour le règlement de la part {payer_name} pour {resident_name} ({facility}), facture {invoice_id}, montant restant {open_amount}. Pourriez-vous nous indiquer la date de mise en paiement ou nous transmettre l'état de paiement correspondant ?\nCordialement,\nService facturation"
+en:
+  private:
+    1: "Dear {payer_name},\nOur records show a balance of {open_amount} on invoice {invoice_id} ({period}) for {resident_name} at {facility}, due on {due_date}. If you have already paid, please ignore this message. If it would help to spread the cost, we are happy to agree a payment plan.\nKind regards,\nAccounts team"
+    2: "Dear {payer_name},\nWe are following up on invoice {invoice_id} ({period}) for {resident_name}: {open_amount} has been outstanding since {due_date}. Please get in touch if anything is making payment difficult; we can talk through the options.\nKind regards,\nAccounts team"
+    3: "Dear {payer_name},\nInvoice {invoice_id} ({period}) for {resident_name} still shows {open_amount} outstanding (due {due_date}). We would like to arrange a call with the home manager to agree a way forward.\nKind regards,\nAccounts team"
+  public:
+    1: "Subject: payment query - {resident_name}, {period}\nDear colleague,\nWe have not yet identified {payer_name}'s payment for {resident_name} ({facility}), invoice {invoice_id}, balance {open_amount}. Could you confirm the payment date or send the remittance advice?\nKind regards,\nAccounts team"

@@ -1,13 +1,27 @@
 CLIENT ?= azur
+SCORER ?= rules
+WEEK ?= 2025-12-31
 PY := uv run python
 
-.PHONY: data test lint
+.PHONY: data eval run export test lint all
 
-data:
+data:            ## synthetic exports + hidden ground truth for azur, maple, client3 (+ mapping-eval variants)
 	$(PY) -m reconcile.generate --variants
+
+eval:            ## history -> thresholds -> weekly test runs; writes reports/eval_$(CLIENT)_*.md and state/
+	$(PY) -m reconcile.pipeline eval --client $(CLIENT) --scorer $(SCORER)
+
+run:             ## one weekly run on saved state (idempotent)
+	$(PY) -m reconcile.pipeline run --client $(CLIENT) --week $(WEEK)
+
+export:          ## lettrage file for the billing software
+	$(PY) -m reconcile.pipeline export --client $(CLIENT)
 
 test:
 	uv run pytest
 
 lint:
 	uv run ruff check . && uv run ruff format --check .
+
+all: data
+	$(MAKE) eval CLIENT=azur SCORER=rules

@@ -10,6 +10,17 @@ from __future__ import annotations
 
 from collections.abc import Hashable, Sequence
 
+from reconcile.normalize import norm_id
+
+PRIVATE_PAYER_TYPES = {"resident", "family", "other"}
+
+
+def payer_identity(pkey: str, ptype: str, resident_id: str) -> str:
+    """Private payers are scoped to their resident (two 'Marie Martin' are two people);
+    public bodies, guardians and health funders are one payer across many residents."""
+    return f"{pkey}@{norm_id(resident_id)}" if ptype in PRIVATE_PAYER_TYPES else pkey
+
+
 # An open balance at or below this is a payment difference (écart de règlement), treated as settled.
 SETTLE_TOLERANCE_CENTS = 200
 

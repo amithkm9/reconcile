@@ -1,0 +1,250 @@
+{
+  "test_lines": 1981,
+  "test_ar_lines": 1928,
+  "test_weeks": 14,
+  "auto_lines": 1492,
+  "auto_correct": 1488,
+  "auto_precision": 0.9973,
+  "auto_precision_lb95": 0.9939,
+  "edge_precision": 0.9973,
+  "amount_weighted_precision": 0.9987,
+  "automation_rate": 0.7739,
+  "automation_rate_eur": 0.6416,
+  "suggestion_recall": 0.902,
+  "review_lines": 379,
+  "review_per_week": 27.1,
+  "candidate_recall_all_months": 0.99,
+  "candidate_recall_by_type": {
+    "bulk_no_remit": 0.9706,
+    "bulk_remit": 1.0,
+    "dd": 0.9989,
+    "dd_return": 0.9789,
+    "guardian_bulk": 0.9167,
+    "multi_month": 0.8825,
+    "one_to_one": 0.9871,
+    "overpay": 0.9167,
+    "partial": 0.9735,
+    "split_share": 0.9968
+  },
+  "confusion": {
+    "ar->auto": 1492,
+    "ar->review": 375,
+    "ar->unapplied": 61,
+    "non_ar->non_ar": 36,
+    "unapplied->review": 4,
+    "unapplied->unapplied": 13
+  },
+  "by_match_type": {
+    "bulk_no_remit": {
+      "n": 4,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 1.0
+    },
+    "bulk_remit": {
+      "n": 46,
+      "automation": 0.0217,
+      "auto_precision": 1.0,
+      "suggestion_recall": 1.0
+    },
+    "dd": {
+      "n": 1425,
+      "automation": 0.9951,
+      "auto_precision": 1.0,
+      "suggestion_recall": 0.9972
+    },
+    "dd_return": {
+      "n": 22,
+      "automation": 1.0,
+      "auto_precision": 1.0,
+      "suggestion_recall": 1.0
+    },
+    "guardian_bulk": {
+      "n": 9,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.4444
+    },
+    "multi_month": {
+      "n": 151,
+      "automation": 0.0464,
+      "auto_precision": 0.5714,
+      "suggestion_recall": 0.3245
+    },
+    "one_to_one": {
+      "n": 133,
+      "automation": 0.188,
+      "auto_precision": 1.0,
+      "suggestion_recall": 0.8947
+    },
+    "overpay": {
+      "n": 10,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.6
+    },
+    "partial": {
+      "n": 63,
+      "automation": 0.0317,
+      "auto_precision": 0.5,
+      "suggestion_recall": 0.619
+    },
+    "split_share": {
+      "n": 65,
+      "automation": 0.2615,
+      "auto_precision": 1.0,
+      "suggestion_recall": 0.8462
+    }
+  },
+  "by_shift": {
+    "label_format": {
+      "n": 415,
+      "automation": 0.1229,
+      "auto_precision": 0.9216,
+      "suggestion_recall": 0.6434
+    },
+    "married_name": {
+      "n": 7,
+      "automation": 0.0,
+      "auto_precision": null,
+      "suggestion_recall": 0.1429
+    },
+    "none": {
+      "n": 1489,
+      "automation": 0.9671,
+      "auto_precision": 1.0,
+      "suggestion_recall": 0.994
+    },
+    "remit_layout": {
+      "n": 17,
+      "automation": 0.0588,
+      "auto_precision": 1.0,
+      "suggestion_recall": 1.0
+    }
+  },
+  "reminders_drafted": 223,
+  "reminders_held": {
+    "dd_return": 22,
+    "deceased": 51,
+    "pending_review": 29,
+    "unapplied_cash": 475
+  },
+  "reminders_delayed_by_holds": 340,
+  "wrong_reminders": 0,
+  "wrong_reminder_examples": [],
+  "missed_reminders": 0,
+  "balance_ok_all_runs": true,
+  "greedy_components_checked": 145,
+  "greedy_suboptimal": 2,
+  "stranded_lines": 0,
+  "errors": [
+    {
+      "date": "2025-10-09",
+      "label": "VIREMENT RECU /DE MOREL GERMAINE",
+      "reference": "/MOTIF PENSION SEPT",
+      "amount": 942.0,
+      "truth_type": "multi_month",
+      "shift": "label_format",
+      "predicted": [
+        [
+          "FA2025-005186",
+          94200
+        ]
+      ],
+      "truth": [
+        [
+          "FA2025-005186",
+          27200
+        ],
+        [
+          "FA2025-005786",
+          67000
+        ]
+      ]
+    },
+    {
+      "date": "2025-12-07",
+      "label": "VIREMENT RECU /DE MOREL GERMAINE",
+      "reference": "/MOTIF PENSION DEC",
+      "amount": 973.4,
+      "truth_type": "multi_month",
+      "shift": "label_format",
+      "predicted": [
+        [
+          "FA2025-005786",
+          97340
+        ]
+      ],
+      "truth": [
+        [
+          "FA2025-006385",
+          30340
+        ],
+        [
+          "FA2025-006982",
+          67000
+        ]
+      ]
+    },
+    {
+      "date": "2025-12-08",
+      "label": "VIREMENT RECU /DE M VIDAL LUC",
+      "reference": "/MOTIF LOYER DEC MAMAN",
+      "amount": 958.0,
+      "truth_type": "multi_month",
+      "shift": "label_format",
+      "predicted": [
+        [
+          "FA2025-007037",
+          95800
+        ]
+      ],
+      "truth": [
+        [
+          "FA2025-006440",
+          92760
+        ],
+        [
+          "FA2025-007037",
+          3040
+        ]
+      ]
+    },
+    {
+      "date": "2025-12-11",
+      "label": "VIREMENT RECU /DE M VIDAL LUC",
+      "reference": "/MOTIF LOYER NOV MAMAN",
+      "amount": 927.6,
+      "truth_type": "partial",
+      "shift": "label_format",
+      "predicted": [
+        [
+          "FA2025-006440",
+          92760
+        ]
+      ],
+      "truth": [
+        [
+          "FA2025-007037",
+          92760
+        ]
+      ]
+    }
+  ],
+  "client": "azur",
+  "scorer": "rules",
+  "thresholds": {
+    "auto": 0.9979746796109501,
+    "review": 0.8175744761936437,
+    "certified_lb": 0.9909691308011921,
+    "n_at_auto": 1011,
+    "k_at_auto": 1007,
+    "target": 0.99
+  },
+  "n_train_rows": 11978,
+  "n_threshold_rows": 3894,
+  "threshold_set": {
+    "lines": 1286,
+    "correct_chosen": 1192
+  }
+}

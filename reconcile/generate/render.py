@@ -17,6 +17,7 @@ from pathlib import Path
 
 import yaml
 
+from reconcile.dates import week_ends
 from reconcile.generate.world import World
 from reconcile.ids import bank_line_hash
 
@@ -213,15 +214,6 @@ def write_table(
     path.write_text(buf.getvalue(), encoding=spec.get("encoding", "utf-8"))
 
 
-def week_ends(start: dt.date, end: dt.date) -> list[dt.date]:
-    d = start + dt.timedelta(days=(6 - start.weekday()) % 7)
-    out = []
-    while d <= end:
-        out.append(d)
-        d += dt.timedelta(days=7)
-    if out[-1] != end:
-        out.append(end)
-    return out
 
 
 def write_client(
@@ -286,6 +278,7 @@ def _write_truth(world: World, tables: dict, layout: dict, tdir: Path) -> None:
                 "true_class",
                 "match_type",
                 "allocation_json",
+                "share_alloc_json",
                 "unapplied_cents",
                 "shift_tag",
                 "month_index",
@@ -309,6 +302,7 @@ def _write_truth(world: World, tables: dict, layout: dict, tdir: Path) -> None:
                     ln.true_class,
                     ln.match_type,
                     json.dumps(ln.edges),
+                    json.dumps(ln.share_edges),
                     ln.unapplied,
                     ln.shift_tag,
                     ln.month_index,

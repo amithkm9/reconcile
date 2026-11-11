@@ -1,0 +1,70 @@
+# Confirmed mapping template for Groupe Résidences Azur (written by hand for checkpoint 2;
+# the mapping agent's proposal is compared against it in the mapping eval).
+client: azur
+language: fr
+files:
+  invoices:
+    path: factures.csv
+    encoding: utf-8-sig
+    sep: ";"
+    decimal: ","
+    date_format: "%d/%m/%Y"
+    period_format: "%m/%Y"
+    columns:
+      invoice_id: "N° Facture"
+      issue_date: Date facture
+      due_date: Échéance
+      resident_id: Code résident
+      resident_name: [Nom, Prénom]
+      facility: Établissement
+      period: Période
+      doc_type: Type
+      amount: Montant TTC
+      original_invoice: Facture d'origine
+    values:
+      doc_type: {FACTURE: invoice, AVOIR: credit}
+  payers:
+    path: payeurs.csv
+    encoding: utf-8
+    sep: ";"
+    decimal: ","
+    date_format: "%d/%m/%Y"
+    columns:
+      resident_id: Code résident
+      resident_name: Nom résident
+      payer_name: Nom payeur
+      payer_type: Type payeur
+      share_pct: Part %
+      mandate_ref: RUM
+      resident_exit_date: Date sortie
+    values:
+      payer_type: {"Résident": resident, "Famille": family, "Aide sociale (Département)": public_aid, "Tuteur / UDAF": guardian}
+  remittances:
+    path: avis_paiement.csv
+    encoding: utf-8
+    sep: ";"
+    decimal: ","
+    date_format: "%d/%m/%Y"
+    period_format: "%m/%Y"
+    columns:
+      remittance_id: "N° avis"
+      date: Date avis
+      payer_name: Payeur
+      facility: Établissement
+      beneficiary_name: Bénéficiaire
+      period: Période
+      amount: Montant
+  bank:
+    path: "bank/*.csv"
+    encoding: cp1252
+    sep: ";"
+    skip_rows: 2
+    skip_footer: 1
+    decimal: ","
+    date_format: "%d/%m/%Y"
+    amount_mode: debit_credit
+    columns: {date: Date opération, label: Libellé, reference: Référence, debit: Débit, credit: Crédit}
+patterns:
+  invoice: "(?:FA|AV)\\d{4}-\\d{6}"
+  mandate: "RUM-AZ-\\d{6}"
+  remittance: "AV-\\d{2}-\\d{4}-\\d{4}"
