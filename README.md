@@ -95,10 +95,10 @@ flowchart TD
 A reminder goes out only after every hold has been checked, and a person approves it:
 
 ```mermaid
-flowchart LR
-    O["Payer's share<br/>15+ days overdue"] --> H{"Any hold?"}
+flowchart TD
+    O["Payer's share 15+ days overdue"] --> H{"Any hold?"}
+    H -- no --> D["Draft reminder"] --> P["Person approves<br/>never sent automatically"]
     H -- yes --> W["Held, reason shown:<br/>review pending · cash that could be theirs ·<br/>direct debit returned · resident deceased"]
-    H -- no --> D["Draft"] --> P["Person approves<br/>never auto-sent"]
     classDef default fill:#f3f8fc,stroke:#1f5f8b,color:#1b1f24
 ```
 
@@ -197,7 +197,7 @@ make lint                              # ruff + ty
 ## Onboarding a new client
 
 ```mermaid
-flowchart LR
+flowchart TD
     E["Client's raw exports<br/>bank · invoices · payers · statements"] --> P["Profiler + mapper<br/>propose a YAML template"]
     P --> H{"Person confirms<br/>the flagged guesses"}
     H --> V["Load with drift and<br/>data-quality checks"]
