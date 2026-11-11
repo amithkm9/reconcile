@@ -4,7 +4,7 @@ measured from bytes (encoding, separator, header/footer rows, date format) come 
 deterministic profiler, not the model.
 
 Expected cost per onboarding (4 files, ~6k tokens in, ~1.5k out): ~$0.03 on claude-sonnet-5-5,
-~$0.002 on claude-haiku-5-5. Unverified in this repo's environment (no API key here); the
+~$0.001 on claude-haiku-5-5. Unverified in this repo's environment (no API key here); the
 mapping eval reports the measured numbers when it is run with a key.
 """
 
@@ -32,7 +32,16 @@ class ColumnChoice(BaseModel):
 class ValueChoice(BaseModel):
     field: Literal["payer_type", "doc_type"]
     source_value: str
-    canonical: str
+    canonical: Literal[
+        "resident",
+        "family",
+        "public_aid",
+        "guardian",
+        "health_funder",
+        "other",
+        "invoice",
+        "credit",
+    ]
 
 
 class FileChoice(BaseModel):
@@ -101,45 +110,107 @@ def propose(
     )
     if out is None:
         return None, review, rec
-    tpl = json.loads(json.dumps(base))
-    tpl["proposed_by"] = rec.get("model", "llm")
-    by_pattern = {fc.file: fc for fc in out.files}
-    for kind, spec in base["files"].items():
-        fc = next((f for f in out.files if f.role == kind), None) or by_pattern.get(spec["path"])
-        if fc is None:
-            continue
-        cols = {}
-        for cc in fc.columns:
-            if cc.columns:
-                cols[cc.field] = cc.columns[0] if len(cc.columns) == 1 else cc.columns
-        new = tpl["files"][kind]
-        new["path"] = fc.file
-        new["columns"] = {
-            f: c
-            for f, c in cols.items()
-            if f in REQUIRED[kind]
-            or f
-            in (
-                "original_invoice",
-                "resident_name",
-                "mandate_ref",
-                "resident_exit_date",
-                "reference",
-                "facility",
-                "debit",
-                "credit",
-                "amount",
-            )
-        }
-        if kind == "bank":
-            new["amount_mode"] = "signed" if fc.bank_amount_mode == "signed" else "debit_credit"
-        vals = {}
-        for v in fc.values:
-            vals.setdefault(v.field, {})[v.source_value] = v.canonical
-        if vals:
-            new["values"] = vals
+    tpl, review = _merge(base, out, profiles, rec.get("model", "llm"))
     review += [
         {"file": "(llm)", "field": "doubt", "column": d, "score": 0.5, "flag": "model doubt"}
         for d in out.doubts
     ]
     return tpl, review, rec
+
+
+VALID_CANONICAL = {
+    "payer_type": {"resident", "family", "public_aid", "guardian", "health_funder", "other"},
+    "doc_type": {"invoice", "credit"},
+}
+OPTIONAL_FIELDS = (
+    "original_invoice",
+    "resident_name",
+    "mandate_ref",
+    "resident_exit_date",
+    "reference",
+    "facility",
+    "debit",
+    "credit",
+    "amount",
+)
+
+
+def _merge(base: dict, out: MappingProposal, profiles: list[dict], model: str) -> tuple[dict, list]:
+    """Apply the model's proposal onto the deterministic template, keeping only what can be
+    checked: file patterns that were discovered, columns that exist in that file, canonical values
+    from the entity model. Returns the template and review rows built from the *final* template,
+    so the human confirms exactly what will be saved, with disagreements flagged."""
+    headers = {p["file"]: {c["name"] for c in p["columns"]} for p in profiles}
+    tpl = json.loads(json.dumps(base))
+    tpl["proposed_by"] = model
+    review: list[dict] = []
+    for kind, spec in base["files"].items():
+        fc = next((f for f in out.files if f.role == kind and f.file in headers), None)
+        if fc is None:
+            review.append(
+                {
+                    "file": spec["path"],
+                    "field": "(role)",
+                    "column": kind,
+                    "score": 0.5,
+                    "flag": "model did not place this file; deterministic mapping kept",
+                }
+            )
+            continue
+        known = headers[fc.file]
+        cols = {}
+        for cc in fc.columns:
+            mappable = cc.field in REQUIRED[kind] or cc.field in OPTIONAL_FIELDS
+            if mappable and cc.columns and all(c in known for c in cc.columns):
+                cols[cc.field] = cc.columns[0] if len(cc.columns) == 1 else cc.columns
+        new = tpl["files"][kind]
+        new["path"] = fc.file
+        new["columns"] = cols
+        if kind == "bank":
+            new["amount_mode"] = "signed" if fc.bank_amount_mode == "signed" else "debit_credit"
+        vals: dict[str, dict] = {}
+        for v in fc.values:
+            if v.canonical in VALID_CANONICAL[v.field]:
+                vals.setdefault(v.field, {})[v.source_value] = v.canonical
+        if vals:
+            new["values"] = vals
+        else:
+            new.pop("values", None)
+        before = base["files"][kind]
+        for f, c in cols.items():
+            same = before.get("columns", {}).get(f) == c
+            review.append(
+                {
+                    "file": fc.file,
+                    "field": f,
+                    "column": str(c),
+                    "score": 1.0 if same else 0.5,
+                    "flag": None
+                    if same
+                    else f"deterministic mapper chose {before.get('columns', {}).get(f)!r}",
+                }
+            )
+        for f in set(before.get("columns", {})) - set(cols):
+            review.append(
+                {
+                    "file": fc.file,
+                    "field": f,
+                    "column": "-",
+                    "score": 0.5,
+                    "flag": f"model left it unmapped; deterministic mapper chose {before['columns'][f]!r}",
+                }
+            )
+        for field, mapping in vals.items():
+            for src, canon in mapping.items():
+                same = before.get("values", {}).get(field, {}).get(src) == canon
+                review.append(
+                    {
+                        "file": fc.file,
+                        "field": f"{field} value",
+                        "column": src,
+                        "proposed": canon,
+                        "score": 1.0 if same else 0.5,
+                        "flag": None if same else "differs from deterministic mapper",
+                    }
+                )
+    return tpl, review
