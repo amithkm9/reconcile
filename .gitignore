@@ -9,3 +9,4 @@ state/
 reports/audit_*.jsonl
 reports/llm_calls.jsonl
 .DS_Store
+reports/lettrage_*.csv
