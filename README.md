@@ -37,9 +37,8 @@ A finance clerk matches each one by hand. The expensive mistakes are posting mon
 
 ## At a glance
 
-| | | |
-|:---:|:---:|:---:|
 | **2,319**<br>bank lines auto-posted on a held-out quarter, **0 wrong** | **≥ 99.2%**<br>precision per client, 95% lower bound | **0**<br>overdue unpaid shares missed by reminders |
+|:---:|:---:|:---:|
 | **1–2**<br>reminders per client per quarter to a payer who had paid | **30 / 30**<br>hand-written hard cases, fixed before any code | **3 formats**<br>onboarded from YAML, zero Python changes |
 
 **What those numbers mean:** most auto-posts are direct debits, 55.1–74.9% of the receivable lines in this simulation (an assumed mix). For family transfers, partial payments and bulk payments, the system auto-posts only 0.3–6.2% and sends the rest to a clerk, with the right answer as the first suggestion 59–69% of the time. The value is the safety around the automation, not the automation rate.
@@ -48,15 +47,7 @@ A finance clerk matches each one by hand. The expensive mistakes are posting mon
 
 This project is organised the way I would run an engagement with a care-home group: understand their problem, get their data in, build the smallest safe thing, prove it on their own history, fit it into their workflow, and harden it for production.
 
-```mermaid
-flowchart LR
-    A["1 · Understand<br/>the problem"] --> B["2 · Get their<br/>data in"]
-    B --> C["3 · Build the<br/>smallest safe thing"]
-    C --> D["4 · Prove it on<br/>their history"]
-    D --> E["5 · Fit their<br/>workflow"]
-    E --> F["6 · Harden for<br/>production"]
-    F -. "new bank formats,<br/>new clients" .-> B
-```
+<p align="center"><img src="docs/img/fde_loop.png" alt="The FDE loop: understand the problem, get their data in, build the smallest safe thing, prove it on history, fit their workflow, harden for production" width="900"></p>
 
 | Stage | What the customer needs | What this repo does | Evidence |
 |---|---|---|---|
