@@ -36,7 +36,8 @@ from reconcile.normalize import (
     vocab,
 )
 
-MAX_EXCL = 2  # exclusions searched among the period's shares (3 when the set is small)
+MAX_EXCL = 2  # exclusions searched among the period's shares (3 when small, 1 when large)
+LARGE_SET = 60  # above this many shares the search allows a single exclusion, to stay fast
 MAX_ADD = 2  # arrears from earlier periods that may be added
 SMALL_SET = 25
 MAX_VALID = 20  # stop counting valid subsets beyond this: "many" is enough to block auto
@@ -157,7 +158,9 @@ class Matcher:
         touched |= {self.L.shares[k].pid for c in cands for k, _ in c.edges}
         uniq: dict[frozenset, Cand] = {}
         for c in cands:
-            if c.edges and (c.key not in uniq or _prio(c) < _prio(uniq[c.key])):
+            if not c.edges or not _within_line(c, int(line["amount_cents"])):
+                continue
+            if c.key not in uniq or _prio(c) < _prio(uniq[c.key]):
                 uniq[c.key] = c
         out = list(uniq.values())[:MAX_CANDS]
         for c in out:
@@ -170,22 +173,42 @@ class Matcher:
         amount = int(line["amount_cents"])
         pids = set(self._mandate_pids(text))
         invs = set(find_pattern(text, self.p_invoice))
+        by_amount = not (pids or invs)
+        shares = self._returned_by_amount(line, text) if by_amount else self._shares_for(pids, invs)
         out = []
-        for s in self._shares_for(pids, invs):
+        for s in shares:
             if self.L.allocated.get(s.key, 0) >= -amount:
-                out.append(
-                    Cand(
-                        line["bank_hash"],
-                        "dd_return",
-                        ((s.key, amount),),
-                        0,
-                        {
-                            "mandate_hit": int(s.pid in pids),
-                            "inv_ref_hit": int(s.invoice_id in invs),
-                        },
-                    )
-                )
+                signals = {
+                    "mandate_hit": int(s.pid in pids),
+                    "inv_ref_hit": int(s.invoice_id in invs),
+                }
+                if by_amount:
+                    signals["n_valid"] = len(shares)  # > 1: several payers fit, never auto
+                out.append(Cand(line["bank_hash"], "dd_return", ((s.key, amount),), 0, signals))
         return out
+
+    def _returned_by_amount(self, line: dict, text: str) -> list[Share]:
+        """A return whose mandate was cut to a prefix several mandates share ('UNPAID DD MCH00001'
+        fits MCH000010..MCH000019). Candidates: the shares of those payers that had a direct
+        debit of exactly this amount collected in the last 35 days. Residents often pay the same
+        standard fee, so this can stay ambiguous: then every candidate is shown to a reviewer and
+        the line is never auto-posted (see `_dd_return`)."""
+        amount, d = int(line["amount_cents"]), line["date"]
+        pids: set[str] = set()
+        for tok in reversed(text.upper().split()):
+            hits = [m for m in self.mandate_prefixes if len(tok) >= 6 and m.startswith(tok)]
+            if len(hits) > 1:
+                pids = {self.mandate_pid[m] for m in hits}
+                break
+        keys = {
+            a["share_key"]
+            for a in self.L.allocations
+            if pids
+            and a["cents"] == -amount
+            and 0 <= (d - a["date"]).days <= 35
+            and self.L.shares[a["share_key"]].pid in pids
+        }
+        return [self.L.shares[k] for k in sorted(keys)]
 
     def _shares_for(self, pids: set[str], invs: set[str]) -> list[Share]:
         if invs:
@@ -286,6 +309,7 @@ class Matcher:
                 continue
             edges, scores, unresolved = [], [], 0
             used: set[str] = set()
+            budget = amount  # a short-paid statement must not allocate more than arrived
             for r in rows:
                 pool = self.res_by_payer_fac.get(
                     (pid, norm_text(r["facility"])), self.res_by_payer_fac[(pid, "")]
@@ -303,11 +327,17 @@ class Matcher:
                         None,
                     )
                     scores.append(sc)
-                if share is None or share.key in used or self.L.open(share.key) <= 0:
+                take = (
+                    0
+                    if share is None
+                    else min(int(r["amount_cents"]), self.L.open(share.key), budget)
+                )
+                if share is None or share.key in used or take <= 0:
                     unresolved += 1
                     continue
                 used.add(share.key)
-                edges.append((share.key, min(int(r["amount_cents"]), self.L.open(share.key))))
+                budget -= take
+                edges.append((share.key, take))
             if edges:
                 left = amount - sum(c for _, c in edges)
                 out.append(
@@ -318,10 +348,8 @@ class Matcher:
                         left,
                         {
                             "remit_backed": 1,
-                            "remit_rows": len(rows),
                             "remit_resolved": 1 - unresolved / len(rows),
                             "remit_name_min": min(scores) if scores else 0,
-                            "remit_by_id": int(bool(ids)),
                         },
                     )
                 )
@@ -335,7 +363,8 @@ class Matcher:
         ms = month_tokens(text)
         if len(ms) == 1:
             m = ms.pop()
-            y = d.year - 1 if m > d.month + 1 else d.year
+            # a month name means the nearest such month: "JANVIER" paid on 29 Dec is next January
+            y = d.year + 1 if m - d.month <= -11 else d.year - 1 if m > d.month + 1 else d.year
             return f"{y}-{m:02d}"
         return f"{d.year}-{d.month:02d}"
 
@@ -374,16 +403,16 @@ class Matcher:
                 continue
             seen.add(edges)
             out.append((edges, n_ex, n_add, len(subset)))
-        sig = {"n_valid": max(1, n_valid), "facility_hit": int(bool(facs))}
+        sig = {"n_valid": max(1, n_valid)}
         return [
             Cand(
                 line["bank_hash"],
                 "bulk",
                 e,
                 0,
-                sig | {"n_excluded": x, "n_added": a, "bulk_size": n},
+                sig | {"n_excluded": x, "n_added": a},
             )
-            for e, x, a, n in out[:5]
+            for e, x, a, _n in out[:5]
         ]
 
     # ---- 5. names ----
@@ -415,7 +444,6 @@ class Matcher:
         all_pids = set(pid_score)  # every plausible payer, kept for the reminder holds
         if len(pid_score) > 12:  # too generic a name (e.g. a common surname): keep the best
             pid_score = dict(sorted(pid_score.items(), key=lambda kv: (-kv[1], kv[0]))[:12])
-        months = month_tokens(text)
         # payers (with something open) whose name matches about as well as the best one: 'B EVANS'
         # could be Barbara or Brian Evans; that is real ambiguity, not a scoring detail
         live = {pid: sc for pid, sc in pid_score.items() if self.L.open_shares(pid, d)}
@@ -431,7 +459,6 @@ class Matcher:
                 "name_score": score,
                 "alias_hit": int(pid in alias_hit),
                 "resident_hit": int(pid in res_hit),
-                "month_hit_any": int(bool(months)),
             }
             edges, left = fifo_allocate(amount, [(s.key, self.L.open(s.key)) for s in opens])
             out.append(Cand(line["bank_hash"], "name_fifo", tuple(edges), left, dict(sig)))
@@ -454,6 +481,12 @@ def name_similarity(a: str, b: str) -> float:
     return max(fuzz.token_sort_ratio(a, b), tset)
 
 
+def _within_line(c: Cand, amount: int) -> bool:
+    """Never allocate more than the bank line carries, or with the opposite sign."""
+    total = sum(cents for _, cents in c.edges)
+    return 0 < total <= amount if amount > 0 else amount <= total < 0
+
+
 def _prio(c: Cand) -> int:
     return ["dd_return", "mandate", "remit", "reference", "bulk", "name_fifo", "name_single"].index(
         c.mtype
@@ -474,7 +507,8 @@ def _best_name(target: str, pool: dict[str, str]) -> tuple[str, float] | None:
 
 def _subset_search(cur: list[Share], arr: list[Share], amount: int, open_fn) -> dict:
     """Which shares does a bulk amount pay? Start from all of the period's open shares, then
-    exclude up to MAX_EXCL of them (3 if the set is small) and/or add up to MAX_ADD arrears.
+    exclude up to MAX_EXCL of them (3 if the set is small, 1 above LARGE_SET) and/or add up to
+    MAX_ADD arrears.
 
     Simplest explanation first: solutions are searched by number of changes (exclusions +
     additions), and only the first level that has any solution counts. An exact match of the
@@ -486,7 +520,7 @@ def _subset_search(cur: list[Share], arr: list[Share], amount: int, open_fn) -> 
     """
     total = sum(open_fn(s.key) for s in cur)
     diff = total - amount
-    k = 3 if len(cur) <= SMALL_SET else (MAX_EXCL if len(cur) <= 60 else 1)
+    k = 3 if len(cur) <= SMALL_SET else (MAX_EXCL if len(cur) <= LARGE_SET else 1)
     adds: list[dict[int, list[tuple]]] = []
     for n in range(0, MAX_ADD + 1):
         by_sum: dict[int, list[tuple]] = defaultdict(list)
