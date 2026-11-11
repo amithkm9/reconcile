@@ -9,10 +9,14 @@ same way by luck.
 from __future__ import annotations
 
 from collections.abc import Hashable, Sequence
+from typing import TypeVar
 
 from reconcile.normalize import norm_id
 
 PRIVATE_PAYER_TYPES = {"resident", "family", "other"}
+
+
+K = TypeVar("K", bound=Hashable)  # whatever identifies an open item (a share key)
 
 
 def payer_identity(pkey: str, ptype: str, resident_id: str) -> str:
@@ -50,8 +54,8 @@ def split_shares(net_cents: int, items: Sequence[tuple[str, float]]) -> list[int
 
 
 def fifo_allocate(
-    amount: int, open_items: Sequence[tuple[Hashable, int]]
-) -> tuple[list[tuple[Hashable, int]], int]:
+    amount: int, open_items: Sequence[tuple[K, int]]
+) -> tuple[list[tuple[K, int]], int]:
     """Allocate `amount` to open items oldest first (items must already be sorted by due date).
 
     Returns (edges, unapplied_residual). Standard lettrage convention when a payment carries no
@@ -71,8 +75,8 @@ def fifo_allocate(
 
 
 def allocate_with_reference(
-    amount: int, referenced: Sequence[tuple[Hashable, int]], others: Sequence[tuple[Hashable, int]]
-) -> tuple[list[tuple[Hashable, int]], int]:
+    amount: int, referenced: Sequence[tuple[K, int]], others: Sequence[tuple[K, int]]
+) -> tuple[list[tuple[K, int]], int]:
     """Referenced invoices first (in order), then the rest oldest first."""
     edges, left = fifo_allocate(amount, referenced)
     more, left = fifo_allocate(left, [o for o in others if o[0] not in {k for k, _ in edges}])
