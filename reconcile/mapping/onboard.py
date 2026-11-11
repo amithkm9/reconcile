@@ -17,6 +17,7 @@ import yaml
 
 from reconcile.mapping import propose_fallback, propose_llm
 from reconcile.mapping.template import load_client
+from reconcile.paths import client_paths
 
 
 def onboard(
@@ -36,7 +37,7 @@ def onboard(
         flag = f"  <-- {r['flag']}" if r.get("flag") else ""
         proposed = f" -> {r['proposed']}" if r.get("proposed") else ""
         print(
-            f"  {r['file']:<28} {r['field']:<20} {str(r['column']):<28}{proposed} conf={r['score']:.2f}{flag}"
+            f"  {r['file']:<28} {r['field']:<20} {r['column']!s:<28}{proposed} conf={r['score']:.2f}{flag}"
         )
     if not yes and input("\nSave this template? [y/N] ").strip().lower() != "y":
         print("Not saved. Edit the YAML by hand or re-run.")
@@ -66,8 +67,8 @@ def main() -> None:
     ap.add_argument("--yes", action="store_true", help="accept the proposal without asking")
     ap.add_argument("--no-llm", action="store_true")
     a = ap.parse_args()
-    data = Path(a.data or f"data/{a.client}")
-    onboard(a.client, data, Path(f"templates/{a.client}.yaml"), use_llm=not a.no_llm, yes=a.yes)
+    data = Path(a.data) if a.data else client_paths(a.client).data
+    onboard(a.client, data, client_paths(a.client).template, use_llm=not a.no_llm, yes=a.yes)
 
 
 if __name__ == "__main__":
