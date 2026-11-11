@@ -47,10 +47,13 @@ def choose_thresholds(
     s, c = scores[order], correct[order].astype(int)
     k_cum = np.cumsum(c)
     best = None
+    closest = (0.0, 0, 0)  # best bound reached at any cut, reported when nothing certifies
     for i in range(len(s)):
         if i + 1 < len(s) and s[i + 1] == s[i]:
             continue  # only cut between distinct scores
         lb = cp_lower(int(k_cum[i]), i + 1)
+        if lb > closest[0]:
+            closest = (lb, i + 1, int(k_cum[i]))
         if lb >= target:
             best = (float(s[i]), lb, i + 1, int(k_cum[i]))
     correct_scores = np.sort(scores[correct.astype(bool)])
@@ -59,9 +62,8 @@ def choose_thresholds(
         if len(correct_scores)
         else 0.5
     )
-    if best is None:
-        n = len(s)
-        return Thresholds(float("inf"), min(review, 0.5), cp_lower(int(c.sum()), n), 0, 0, target)
+    if best is None:  # nothing auto-posts; certified_lb / n / k say how close the best cut came
+        return Thresholds(float("inf"), min(review, 0.5), *closest, target)
     return Thresholds(best[0], min(review, best[0]), best[1], best[2], best[3], target)
 
 
